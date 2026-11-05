@@ -94,3 +94,14 @@ Date: 2026-11-05
 - Created `tests/test_assessment_service.py`.
 - Verified all 27 questions, topic and difficulty distributions, filtering, and answer-key protection.
 - Result: All assessment service checks passed.
+
+## 2026-11-05 — MCQ Grading Service
+
+- Created `services/grading_service.py` with reusable MCQ grading logic.
+- Implemented case-insensitive answer comparison.
+- Added support for unanswered questions and custom question points.
+- Used Decimal arithmetic for reliable score calculation.
+- Added validation for answer keys, submitted answers, and points.
+- Ensured explanations are returned as part of the post-submission grading result.
+- Created `tests/test_grading_service.py` with 14 unit tests.
+- Result: All 14 grading service tests passed.
