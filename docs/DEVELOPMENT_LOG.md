@@ -43,3 +43,10 @@ Date: 2026-11-05
 - Created eleven topic prerequisite relationships.
 - Verified database records.
 - Tested duplicate-safe execution.
+
+### Idempotency Verification
+- Executed the Python course seed script a second time.
+- Confirmed that all nine topics remained unchanged.
+- Confirmed zero duplicate prerequisite insertions.
+- Verified all eleven prerequisite relationships remained intact.
+- Confirmed repeatable database initialization.
