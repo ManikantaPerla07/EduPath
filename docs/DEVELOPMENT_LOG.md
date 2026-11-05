@@ -74,3 +74,13 @@ Date: 2026-11-05
 - Verified existing migration skipping.
 - Verified question code uniqueness constraint.
 - Tested repeated migration execution.
+
+## 2026-11-05 — Python Question Bank
+
+- Created `database/seed_questions.py` to initialize the Python Programming MCQ bank.
+- Added 27 MCQs across 9 topics, with 1 easy, 1 medium, and 1 hard question per topic.
+- Used stable question codes and PostgreSQL upserts to make seeding repeatable.
+- Executed the seeding script twice successfully; the database retained exactly 27 active questions.
+- Created `database/verify_question_bank.py` to audit topic-wise distribution and duplicate question codes.
+- Verified all 9 topics, the 27-question total, the expected difficulty distribution, and zero duplicate codes.
+- Result: Question bank initialization and database audit passed.
