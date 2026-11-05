@@ -62,3 +62,15 @@ Date: 2026-11-05
 - Verified existing migration skipping.
 - Verified question code uniqueness constraint.
 - Tested repeated migration execution.
+
+## Milestone 3: Versioned Database Migrations
+
+### Completed
+- Added stable question identifiers.
+- Created migration 002.
+- Upgraded the migration runner to discover SQL files.
+- Added migration checksum verification.
+- Added individual migration transactions.
+- Verified existing migration skipping.
+- Verified question code uniqueness constraint.
+- Tested repeated migration execution.
