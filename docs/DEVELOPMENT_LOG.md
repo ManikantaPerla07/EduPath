@@ -105,3 +105,16 @@ Date: 2026-11-05
 - Ensured explanations are returned as part of the post-submission grading result.
 - Created `tests/test_grading_service.py` with 14 unit tests.
 - Result: All 14 grading service tests passed.
+
+## 2026-11-05 — Assessment Session Service
+
+- Created `services/assessment_session_service.py`.
+- Implemented learner ID, course, topic, and assessment-type validation.
+- Added active learner account verification.
+- Implemented assessment session creation and question snapshot insertion.
+- Used database transactions so incomplete session creation is rolled back.
+- Kept answer keys in backend database records and excluded them from learner-facing payloads.
+- Created `tests/test_assessment_session_service.py` with 6 tests.
+- Verified validation, empty question handling, and rejection of nonexistent learners.
+- Result: All 6 assessment session service tests passed.
+- Successful session creation remains pending authenticated learner integration.
