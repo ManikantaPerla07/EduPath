@@ -84,3 +84,13 @@ Date: 2026-11-05
 - Created `database/verify_question_bank.py` to audit topic-wise distribution and duplicate question codes.
 - Verified all 9 topics, the 27-question total, the expected difficulty distribution, and zero duplicate codes.
 - Result: Question bank initialization and database audit passed.
+
+## 2026-11-05 — Assessment Question Selection Service
+
+- Created `services/assessment_service.py` for retrieving active assessment questions from PostgreSQL.
+- Implemented course, topic, difficulty, and result-limit filtering.
+- Added input validation for course, topic, difficulty, and limit.
+- Implemented `build_learner_question()` using an allowlist to prevent answer-key and explanation leakage.
+- Created `tests/test_assessment_service.py`.
+- Verified all 27 questions, topic and difficulty distributions, filtering, and answer-key protection.
+- Result: All assessment service checks passed.
