@@ -132,3 +132,20 @@ Date: 2026-11-05
 - Confirmed `.streamlit/secrets.toml` remains excluded from Git.
 - Result: Local Google authentication flow successfully tested.
 - Database learner registration remains pending.
+
+## 2026-11-07 — Learner Registration Service
+
+- Created `services/learner_service.py`.
+- Implemented Google OIDC identity extraction and validation.
+- Used issuer and subject as the unique learner identity.
+- Implemented automatic learner account creation and retrieval.
+- Added inactive-account protection without modifying disabled accounts.
+- Added idempotent learner profile creation.
+- Preserved existing learner preferences during subsequent sign-ins.
+- Ensured new profiles start with adult_confirmation=False.
+- Implemented explicit adult confirmation handling.
+- Created `tests/test_learner_service.py` with 15 unit tests.
+- Verified registration, identity validation, existing profiles, inactive accounts, and adult confirmation.
+- All 35 tests across the complete project test suite passed.
+- Result: Learner registration service successfully tested with mocked database operations.
+- Integration with the authenticated Streamlit application remains pending.
