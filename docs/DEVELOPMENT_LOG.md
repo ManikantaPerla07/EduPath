@@ -205,3 +205,26 @@ Date: 2026-11-05
 - Verified answer preservation and improved navigation responsiveness.
 - All 51 project tests passed.
 - Result: Assessment frontend successfully integrated and locally tested.
+
+## 2026-11-08 — Learner Topic Progress and Dashboard
+
+- Created `services/progress_service.py`.
+- Implemented topic accuracy and mastery score calculations.
+- Added evidence-based mastery status classification.
+- Added learner progress aggregation from submitted assessments.
+- Excluded unanswered questions from attempt and accuracy calculations.
+- Implemented idempotent learner-topic progress upserts.
+- Added learner-specific topic progress retrieval.
+- Included topics without existing progress records.
+- Integrated automatic progress updates into assessment submission.
+- Ensured progress updates occur within the assessment submission transaction.
+- Added historical progress refresh when retrieving previously submitted results.
+- Created `tests/test_progress_service.py` with 24 unit tests.
+- Extended assessment submission tests to verify progress integration and transaction rollback.
+- Integrated topic progress into the authenticated Streamlit dashboard.
+- Displayed progress summaries and individual progress cards for all nine Python topics.
+- Verified real learner progress against Neon PostgreSQL.
+- Verified all nine topic cards in the running Streamlit application.
+- Verified 7 of 9 topics assessed, 16 answered questions, and 18.8% overall answered-question accuracy.
+- All 77 tests across the complete project test suite passed.
+- Result: Learner topic progress service and dashboard successfully integrated and locally verified.

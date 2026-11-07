@@ -8,6 +8,7 @@ from psycopg.types.json import Jsonb
 
 from services.assessment_service import load_database_url
 from services.grading_service import grade_mcq_answer
+from services.progress_service import refresh_learner_topic_progress
 
 
 def _parse_uuid(value: Any, field_name: str) -> UUID:
@@ -207,13 +208,16 @@ def submit_assessment(
             cursor.execute(
                 """
                 SELECT
-                    assessment_id,
-                    status,
-                    score_percent
-                FROM assessment_sessions
-                WHERE assessment_id = %s
-                  AND user_id = %s
-                FOR UPDATE;
+                    s.assessment_id,
+                    s.status,
+                    s.score_percent,
+                    c.course_slug
+                FROM assessment_sessions AS s
+                JOIN courses AS c
+                    ON c.course_id = s.course_id
+                WHERE s.assessment_id = %s
+                  AND s.user_id = %s
+                FOR UPDATE OF s;
                 """,
                 (session_id, learner_id),
             )
@@ -225,15 +229,24 @@ def submit_assessment(
                     "Assessment not found for this learner."
                 )
 
-            _, status, saved_score = session
+            _, status, saved_score, course_slug = session
 
             # Repeated requests return the previously saved result.
             if status == "submitted":
-                return _load_saved_result(
+                result = _load_saved_result(
                     cursor,
                     session_id,
                     saved_score,
                 )
+
+                # Recalculate progress from all submitted assessments.
+                refresh_learner_topic_progress(
+                    cursor=cursor,
+                    user_id=str(learner_id),
+                    course_slug=course_slug,
+                )
+
+                return result
 
             if status != "in_progress":
                 raise ValueError(
@@ -384,6 +397,12 @@ def submit_assessment(
                 raise RuntimeError(
                     "Unable to finalize assessment."
                 )
+                        # Update all topic progress records in the same transaction.
+            refresh_learner_topic_progress(
+                cursor=cursor,
+                user_id=str(learner_id),
+                course_slug=course_slug,
+            )
 
     # The transaction commits only after all responses and
     # the final assessment status have been saved successfully.
