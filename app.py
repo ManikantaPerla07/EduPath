@@ -1,4 +1,4 @@
-﻿import math
+import math
 import time
 
 import psycopg
@@ -8,6 +8,8 @@ from services.learner_service import (
     get_or_create_learner,
     confirm_adult_status,
 )
+
+from ui.assessment import render_assessment
 
 
 st.set_page_config(
@@ -91,28 +93,94 @@ def get_authenticated_google_claims():
         "name": st.user.get("name"),
     }
 
+def clear_edupath_session():
+    """Clear EduPath-specific session data."""
+
+    for key in list(st.session_state.keys()):
+        if key.startswith("edupath_"):
+            del st.session_state[key]
+
+
+def logout_user():
+    """Clear learner data before signing out of Google."""
+
+    clear_edupath_session()
+    st.logout()
+
 
 def load_authenticated_learner():
-    """Create or retrieve the learner using authenticated Google claims."""
+    """
+    Retrieve the learner once per browser session.
+
+    Reuse the cached learner during normal navigation.
+    Refresh the database record every 60 seconds.
+    """
 
     try:
+        # Read the currently authenticated Google identity.
         claims = get_authenticated_google_claims()
-        return get_or_create_learner(claims)
+
+        identity_key = (
+            claims["iss"],
+            claims["sub"],
+        )
+
+        # Clear previous learner data if another Google account signs in.
+        stored_identity = st.session_state.get(
+            "edupath_google_identity"
+        )
+
+        if stored_identity != identity_key:
+            clear_edupath_session()
+
+            st.session_state["edupath_google_identity"] = identity_key
+
+        # Retrieve the previously cached learner.
+        cached_learner = st.session_state.get(
+            "edupath_learner"
+        )
+
+        cached_at = st.session_state.get(
+            "edupath_learner_cached_at"
+        )
+
+        # Reuse the account for 60 seconds without another Neon query.
+        if (
+            cached_learner is not None
+            and cached_at is not None
+            and time.monotonic() - cached_at < 60
+        ):
+            return cached_learner
+
+        # Cache expired or first login: retrieve account from Neon.
+        learner = get_or_create_learner(claims)
+
+        st.session_state["edupath_learner"] = learner
+
+        st.session_state["edupath_learner_cached_at"] = (
+            time.monotonic()
+        )
+
+        return learner
 
     except GoogleSessionExpired:
         st.warning(
             "Your Google sign-in session has expired. "
             "Please sign in again."
         )
+
         st.button(
             "Sign out and sign in again",
-            on_click=st.logout,
+            on_click=logout_user,
         )
+
         st.stop()
 
     except PermissionError as error:
         st.error(str(error))
-        st.button("Sign out", on_click=st.logout)
+
+        st.button("Sign out", on_click=logout_user)
+
         st.stop()
 
     except (ValueError, RuntimeError):
@@ -120,7 +188,9 @@ def load_authenticated_learner():
             "We could not verify your Google identity or load "
             "your learner account. Please sign out and try again."
         )
-        st.button("Sign out", on_click=st.logout)
+
+        st.button("Sign out", on_click=logout_user)
+
         st.stop()
 
     except psycopg.Error:
@@ -132,9 +202,9 @@ def load_authenticated_learner():
         if st.button("Retry"):
             st.rerun()
 
-        st.button("Sign out", on_click=st.logout)
-        st.stop()
+        st.button("Sign out", on_click=logout_user)
 
+        st.stop()
 
 def adult_confirmation_screen(learner):
     """Request explicit confirmation that the learner is at least 18."""
@@ -179,6 +249,10 @@ def adult_confirmation_screen(learner):
             try:
                 confirm_adult_status(learner["user_id"])
 
+# Reload the learner so the saved confirmation is reflected.
+                st.session_state.pop("edupath_learner", None)
+                st.session_state.pop("edupath_learner_cached_at", None)
+
                 st.success("Age confirmation saved successfully.")
                 st.rerun()
 
@@ -192,39 +266,104 @@ def adult_confirmation_screen(learner):
 
     st.button(
         "Sign out",
+        on_click=logout_user,
+        use_container_width=True,
+    )
+def navigate_to_assessment():
+    """Navigate to the Python assessment page."""
+
+    st.session_state["edupath_navigation"] = "Python Assessment"
+
+def home_screen(learner):
+    """Display the authenticated learner dashboard and navigation."""
+
+    learner_name = learner["display_name"] or "Learner"
+
+    # Sidebar navigation.
+    st.sidebar.title("🎓 EduPath")
+    st.sidebar.caption("Personalized Tutoring Agent")
+    st.sidebar.divider()
+
+    selected_page = st.sidebar.radio(
+        "Navigation",
+        options=[
+            "Dashboard",
+            "Python Assessment",
+        ],
+        key="edupath_navigation",
+    )
+
+    st.sidebar.divider()
+
+    if learner["email"]:
+        st.sidebar.caption(f"Signed in as {learner['email']}")
+
+    st.sidebar.button(
+        "Sign out",
         on_click=st.logout,
         use_container_width=True,
     )
 
+    # Open the assessment interface.
+    if selected_page == "Python Assessment":
+        render_assessment(learner)
+        return
 
-def home_screen(learner):
-    """Display the authenticated learner dashboard."""
-
+    # Main learner dashboard.
     st.title("🎓 EduPath")
-
-    learner_name = learner["display_name"] or "Learner"
 
     st.subheader(f"Welcome, {learner_name}!")
 
-    if learner["email"]:
-        st.caption(f"Signed in as {learner['email']}")
+    st.success("Your learner account is connected successfully.")
 
     st.divider()
 
-    st.success("Your learner account is connected successfully.")
-
-    st.subheader("Your learning journey starts here")
+    st.header("Your learning journey")
 
     st.write(
-        "Your Python learning profile is ready. "
-        "Personalized tutoring, assessments, and study planning "
-        "will be available through your EduPath dashboard."
+        "Welcome to your personalized Python learning environment. "
+        "Start by evaluating your current Python knowledge."
     )
 
-    with st.expander("Your learning profile"):
+    st.subheader("Python Programming")
 
-        st.write(
-            f"**Proficiency:** {learner['proficiency_level'].title()}"
+    st.write(
+        "Assess your understanding of variables, operators, "
+        "conditionals, loops, functions, collections, strings "
+        "and problem solving."
+    )
+
+    st.info(
+        "Your diagnostic assessment contains 27 multiple-choice "
+        "questions covering all nine Python topics."
+    )
+
+    st.button(
+         "Explore Python Assessment →",
+        type="primary",
+        use_container_width=True,
+        on_click=navigate_to_assessment,
+    )
+    if st.session_state.pop("edupath_open_assessment", False):
+        st.session_state["edupath_navigation"] = "Python Assessment"
+        st.rerun()
+
+    st.divider()
+
+    st.subheader("Your learning profile")
+
+    with st.expander("View profile details"):
+
+        col1, col2 = st.columns(2)
+
+        col1.metric(
+            "Proficiency",
+            learner["proficiency_level"].title(),
+        )
+
+        col2.metric(
+            "Daily study target",
+            f"{learner['daily_study_minutes']} min",
         )
 
         st.write(
@@ -235,20 +374,6 @@ def home_screen(learner):
             f"**Explanation style:** "
             f"{learner['explanation_style'].replace('_', ' ').title()}"
         )
-
-        st.write(
-            f"**Daily study target:** "
-            f"{learner['daily_study_minutes']} minutes"
-        )
-
-    st.divider()
-
-    st.button(
-        "Sign out",
-        on_click=st.logout,
-        use_container_width=True,
-    )
-
 
 # ---------------------------------------------------------
 # Main application flow
