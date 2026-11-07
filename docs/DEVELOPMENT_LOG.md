@@ -149,3 +149,19 @@ Date: 2026-11-05
 - All 35 tests across the complete project test suite passed.
 - Result: Learner registration service successfully tested with mocked database operations.
 - Integration with the authenticated Streamlit application remains pending.
+
+## 2026-11-07 — Google Authentication and Neon Integration
+
+- Integrated Google authentication with the learner registration service.
+- Added authenticated Google OIDC identity extraction to `app.py`.
+- Added identity token timestamp validation.
+- Connected first-time and returning learner sign-ins to Neon PostgreSQL.
+- Implemented automatic learner account and profile retrieval.
+- Added an explicit 18+ confirmation screen.
+- Saved adult confirmation to the learner profile.
+- Added the authenticated learner dashboard.
+- Verified real Google sign-in and dashboard access.
+- Verified Neon contains one learner account and one linked profile.
+- Verified the learner account is active and adult confirmation is saved.
+- Rechecked account and profile counts: one user, one profile, one linked account.
+- Result: Local Google authentication and Neon learner registration integration successfully tested.
