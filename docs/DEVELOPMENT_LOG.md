@@ -165,3 +165,22 @@ Date: 2026-11-05
 - Verified the learner account is active and adult confirmation is saved.
 - Rechecked account and profile counts: one user, one profile, one linked account.
 - Result: Local Google authentication and Neon learner registration integration successfully tested.
+
+## 2026-11-07 — Assessment Submission Service
+
+- Created `services/assessment_submission_service.py`.
+- Implemented assessment ownership verification.
+- Added assessment session locking during submission.
+- Implemented grading using saved assessment question snapshots.
+- Reused the existing MCQ grading service.
+- Added validation against unknown question item IDs.
+- Saved learner responses and awarded points in PostgreSQL.
+- Implemented score percentage and question-level result calculation.
+- Added handling for unanswered questions.
+- Finalized submitted assessment sessions transactionally.
+- Added safe retrieval of previously submitted results.
+- Created `tests/test_assessment_submission_service.py` with 7 unit tests.
+- Verified ownership protection, grading, scoring, unanswered questions, repeated submissions, and abandoned assessment rejection.
+- All 42 tests across the complete project test suite passed.
+- Result: Assessment submission service successfully tested with mocked database operations.
+- Streamlit assessment interface and live assessment submission testing remain pending.
