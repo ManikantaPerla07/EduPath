@@ -118,3 +118,17 @@ Date: 2026-11-05
 - Verified validation, empty question handling, and rejection of nonexistent learners.
 - Result: All 6 assessment session service tests passed.
 - Successful session creation remains pending authenticated learner integration.
+
+## 2026-11-07 — Google Authentication
+
+- Added Streamlit to project dependencies with authentication support.
+- Created the initial EduPath Streamlit application in `app.py`.
+- Configured Google OAuth using Streamlit built-in authentication.
+- Created a separate Google Cloud project and Web application OAuth client.
+- Configured the local authentication secrets securely.
+- Fixed UTF-8 BOM in `.streamlit/config.toml`.
+- Verified Google sign-in and sign-out successfully.
+- Verified authenticated learner name and email display.
+- Confirmed `.streamlit/secrets.toml` remains excluded from Git.
+- Result: Local Google authentication flow successfully tested.
+- Database learner registration remains pending.
