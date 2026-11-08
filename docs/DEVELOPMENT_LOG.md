@@ -273,3 +273,23 @@ Date: 2026-11-05
 - OCR for scanned documents remains unsupported; documents without extractable text are rejected.
 - All 232 project tests passed.
 - Result: Document ingestion, embedding, semantic retrieval, and grounded answer generation successfully tested and integrated at the service level.
+
+## 2026-11-08 - Persistent Chat Service
+
+- Created `services/chat_service.py` for persistent learner conversations.
+- Implemented chat-session creation and learner-owned session listing.
+- Implemented ownership-checked session and message retrieval.
+- Added chronological conversation history retrieval.
+- Implemented user and assistant message persistence.
+- Persisted assistant citation metadata using PostgreSQL JSONB.
+- Updated chat-session activity timestamps when messages are saved.
+- Added automatic conversation titles from the first learner message when no title exists.
+- Implemented conversation renaming and deletion.
+- Used the existing unique LangGraph thread identifier for future agent integration.
+- Enforced learner ownership checks for session reads, writes, renaming, and deletion.
+- Created `tests/test_chat_service.py` with 25 unit tests.
+- Verified real Neon session creation, message persistence, chronological history retrieval, citation persistence, renaming, and deletion.
+- Confirmed temporary integration-test conversations were cleaned up.
+- No database migration was required.
+- All 257 project tests passed.
+- Result: Persistent chat service successfully tested with mocked operations and a real Neon PostgreSQL integration test.
