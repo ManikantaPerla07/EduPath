@@ -224,6 +224,7 @@ def create_chat_session(
     return _session_from_row(row)
 
 
+
 def list_chat_sessions(
     user_id: str | UUID,
     course_slug: str | None = None,
@@ -232,6 +233,7 @@ def list_chat_sessions(
     """List chat sessions belonging only to the specified learner."""
 
     user_uuid = _validate_uuid(user_id, "User ID")
+
     limit = _validate_limit(
         limit,
         1,
@@ -242,7 +244,17 @@ def list_chat_sessions(
     if course_slug is not None:
         course_slug = _validate_course_slug(course_slug)
 
-    query = """
+    # Build optional filters without passing an untyped NULL to PostgreSQL.
+    filters = ["cs.user_id = %s"]
+    parameters = [user_uuid]
+
+    if course_slug is not None:
+        filters.append("c.course_slug = %s")
+        parameters.append(course_slug)
+
+    where_clause = " AND ".join(filters)
+
+    query = f"""
         SELECT
             cs.session_id,
             cs.user_id,
@@ -258,8 +270,7 @@ def list_chat_sessions(
           ON c.course_id = cs.course_id
         LEFT JOIN chat_messages AS cm
           ON cm.session_id = cs.session_id
-        WHERE cs.user_id = %s
-          AND (%s IS NULL OR c.course_slug = %s)
+        WHERE {where_clause}
         GROUP BY
             cs.session_id,
             cs.user_id,
@@ -273,17 +284,11 @@ def list_chat_sessions(
         LIMIT %s;
     """
 
+    parameters.append(limit)
+
     with psycopg.connect(load_database_url()) as connection:
         with connection.cursor() as cursor:
-            cursor.execute(
-                query,
-                (
-                    user_uuid,
-                    course_slug,
-                    course_slug,
-                    limit,
-                ),
-            )
+            cursor.execute(query, tuple(parameters))
             rows = cursor.fetchall()
 
     return [
@@ -294,6 +299,7 @@ def list_chat_sessions(
         }
         for row in rows
     ]
+
 
 
 def get_chat_session(

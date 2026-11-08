@@ -155,6 +155,36 @@ class ChatValidationTests(unittest.TestCase):
 
 class ChatDatabaseTests(unittest.TestCase):
 
+
+    @patch("services.chat_service.load_database_url", return_value="test-db")
+    @patch("services.chat_service.psycopg.connect")
+    def test_lists_sessions_without_course_filter(
+        self,
+        mock_connect,
+        mock_database_url,
+    ):
+        connection, cursor = make_database()
+        mock_connect.return_value = connection
+
+        cursor.fetchall.return_value = [
+            (*session_row(), "python-basics", 2)
+        ]
+
+        result = list_chat_sessions(
+            str(USER_ID),
+            course_slug=None,
+        )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["session_id"], str(SESSION_ID))
+        self.assertEqual(result[0]["message_count"], 2)
+
+        sql, parameters = cursor.execute.call_args.args
+
+        self.assertNotIn("c.course_slug = %s", sql)
+        self.assertEqual(parameters, (USER_ID, 50))
+
+
     @patch("services.chat_service.load_database_url", return_value="test-db")
     @patch("services.chat_service.psycopg.connect")
     def test_creates_chat_session(

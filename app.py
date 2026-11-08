@@ -11,6 +11,7 @@ from services.learner_service import (
 from services.progress_service import fetch_learner_topic_progress
 from ui.assessment import render_assessment
 from ui.study_plan import render_study_plan
+from ui.tutor import render_tutor
 
 
 st.set_page_config(
@@ -360,6 +361,7 @@ def home_screen(learner):
         "Navigation",
         options=[
             "Dashboard",
+            "AI Tutor",
             "Python Assessment",
             "Study Plan",
         ],
@@ -376,6 +378,10 @@ def home_screen(learner):
         on_click=logout_user,
         use_container_width=True,
     )
+    # Open the AI Tutor interface.
+    if selected_page == "AI Tutor":
+        render_tutor(learner)
+        return
 
     # Open the assessment interface.
     if selected_page == "Python Assessment":

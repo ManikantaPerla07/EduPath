@@ -293,3 +293,22 @@ Date: 2026-11-05
 - No database migration was required.
 - All 257 project tests passed.
 - Result: Persistent chat service successfully tested with mocked operations and a real Neon PostgreSQL integration test.
+
+## 2026-11-08 - Streamlit AI Tutor and Conversation Management
+
+- Created `ui/tutor.py` for the authenticated conversational AI Tutor.
+- Integrated AI Tutor into the existing Streamlit sidebar navigation.
+- Connected the Tutor interface to the persistent chat service and grounded RAG answer-generation pipeline.
+- Implemented new conversations and recent conversation selection.
+- Added chronological conversation history restoration from Neon PostgreSQL.
+- Displayed assistant answers with expandable source citation details.
+- Added conversation renaming and deletion with explicit confirmation.
+- Reloaded the saved transcript after successful responses to prevent duplicate message rendering.
+- Fixed PostgreSQL parameter type inference in optional course filtering in `list_chat_sessions`.
+- Added a regression test for conversation listing without a course filter.
+- Verified real learner questions and grounded Gemini responses through the Streamlit interface.
+- Verified that multiple user and assistant messages and citations persist after browser refresh.
+- Verified conversation creation, switching, renaming, and deletion against Neon PostgreSQL.
+- Confirmed that deleting a conversation preserves other conversations.
+- All 258 project tests passed.
+- Result: The first functional, persistent Streamlit AI Tutor interface successfully integrated and locally verified.
