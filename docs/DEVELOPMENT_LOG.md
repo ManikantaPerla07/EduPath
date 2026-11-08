@@ -1,4 +1,4 @@
-﻿# EduPath Development Log
+# EduPath Development Log
 
 ## Milestone 1: Project and Database Initialization
 
@@ -228,3 +228,25 @@ Date: 2026-11-05
 - Verified 7 of 9 topics assessed, 16 answered questions, and 18.8% overall answered-question accuracy.
 - All 77 tests across the complete project test suite passed.
 - Result: Learner topic progress service and dashboard successfully integrated and locally verified.
+
+## 2026-11-08 — Personalized Study Plan and Activity Completion
+
+- Created `services/study_plan_service.py` for deterministic, learner-specific study-plan generation.
+- Implemented topic prioritization using assessment performance, mastery status, learning goals, and prerequisite relationships.
+- Generated personalized schedules using the learner's available daily study time.
+- Persisted study plans and scheduled activities in Neon PostgreSQL.
+- Implemented retrieval of active and completed study plans.
+- Added ownership and learner eligibility validation for activity updates.
+- Implemented activity completion, reopening, and status persistence.
+- Automatically marks a plan completed when all activities are completed.
+- Automatically restores the active plan status when an activity is reopened.
+- Added live completion percentage, completed activity count, and remaining activity count to the UI.
+- Created the modular Streamlit study-plan interface in `ui/study_plan.py`.
+- Integrated the Study Plan page into application navigation.
+- Created `tests/test_study_plan_service.py` with 33 tests.
+- Verified activity completion and reopening through the Streamlit interface.
+- Verified saved activity statuses and plan completion in Neon PostgreSQL.
+- Verified the final completed plan contains 9 activities, all completed.
+- Ran Python compilation successfully.
+- All 110 tests across the complete project test suite passed.
+- Result: Personalized study-plan generation and activity completion successfully integrated and locally verified.

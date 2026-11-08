@@ -10,6 +10,7 @@ from services.learner_service import (
 )
 from services.progress_service import fetch_learner_topic_progress
 from ui.assessment import render_assessment
+from ui.study_plan import render_study_plan
 
 
 st.set_page_config(
@@ -230,6 +231,12 @@ def navigate_to_assessment():
     st.session_state["edupath_navigation"] = "Python Assessment"
 
 
+def navigate_to_study_plan():
+    """Navigate to the personalized study-plan page."""
+
+    st.session_state["edupath_navigation"] = "Study Plan"
+
+
 def _format_mastery_status(status):
     """Convert the stored progress status into a readable label."""
 
@@ -354,6 +361,7 @@ def home_screen(learner):
         options=[
             "Dashboard",
             "Python Assessment",
+            "Study Plan",
         ],
         key="edupath_navigation",
     )
@@ -372,6 +380,10 @@ def home_screen(learner):
     # Open the assessment interface.
     if selected_page == "Python Assessment":
         render_assessment(learner)
+        return
+
+    if selected_page == "Study Plan":
+        render_study_plan(learner)
         return
 
     # Main learner dashboard.
@@ -404,6 +416,12 @@ def home_screen(learner):
         type="primary",
         use_container_width=True,
         on_click=navigate_to_assessment,
+    )
+
+    st.button(
+        "Create or view your study plan →",
+        use_container_width=True,
+        on_click=navigate_to_study_plan,
     )
 
     if st.session_state.pop("edupath_open_assessment", False):
