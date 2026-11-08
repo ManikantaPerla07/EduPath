@@ -6,6 +6,10 @@ import streamlit as st
 
 from agents.tutor_graph import run_tutor_graph
 from services.answer_generation_service import AnswerGenerationError
+from services.conversation_context_service import (
+    MAX_CONTEXT_HISTORY_MESSAGES,
+    ConversationContextError,
+)
 from services.chat_service import (
     create_chat_session,
     delete_chat_session,
@@ -381,7 +385,25 @@ def _process_question(
             )
             return
 
-    # Save the learner's message first.
+    # Load recent conversation history before saving the current question.
+    conversation_history = []
+
+    if session_id is not None:
+        try:
+            conversation_history = get_chat_messages(
+                user_id=user_id,
+                session_id=session_id,
+                limit=MAX_CONTEXT_HISTORY_MESSAGES,
+            )
+
+        except (ValueError, LookupError, psycopg.Error):
+            st.error(
+                "We could not load the recent conversation context. "
+                "Your question was not submitted. Please try again."
+            )
+            return
+
+    # Save the learner's message only after previous history is loaded.
     try:
         saved_user_message = save_chat_message(
             user_id=user_id,
@@ -410,6 +432,7 @@ def _process_question(
                     question=question,
                     course_slug=COURSE_SLUG,
                     limit=5,
+                    conversation_history=conversation_history,
                 )
 
             answer = result["answer"]
@@ -436,9 +459,9 @@ def _process_question(
                 citations=citations,
             )
 
-    except AnswerGenerationError:
+    except (AnswerGenerationError, ConversationContextError):
         st.error(
-            "The Tutor could not generate an answer right now. "
+            "The Tutor could not process your question right now. "
             "Your question has been saved. Please try again shortly."
         )
         return

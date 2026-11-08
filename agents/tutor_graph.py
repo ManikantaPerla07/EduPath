@@ -8,6 +8,9 @@ from services.answer_generation_service import (
     MAX_QUESTION_LENGTH,
     generate_grounded_answer,
 )
+from services.conversation_context_service import (
+    resolve_contextual_question,
+)
 from services.retrieval_service import (
     MAX_SEARCH_LIMIT,
     MIN_SEARCH_LIMIT,
@@ -22,6 +25,8 @@ class TutorGraphState(TypedDict, total=False):
     course_slug: str
     topic_slug: str | None
     limit: int
+    conversation_history: list[dict[str, Any]]
+    retrieval_query: str
     retrieved_chunks: list[dict[str, Any]]
     answer_result: dict[str, Any]
 
@@ -68,33 +73,48 @@ def _validate_input(state: TutorGraphState) -> dict[str, Any]:
             f"{MIN_SEARCH_LIMIT} and {MAX_SEARCH_LIMIT}."
         )
 
+    conversation_history = state.get("conversation_history", [])
+
+    if not isinstance(conversation_history, list):
+        raise ValueError("Conversation history must be a list.")
+
     return {
         "question": question,
         "course_slug": course_slug.strip(),
         "topic_slug": topic_slug.strip() if topic_slug else None,
         "limit": limit,
+        "conversation_history": conversation_history,
     }
 
 
 def build_tutor_graph(client: Any | None = None):
-    """Build and compile the EduPath tutoring workflow.
-
-    The optional client is shared by query embedding and answer generation.
-    It is injected into nodes through a closure, not stored in graph state.
-    """
+    """Build and compile the conversation-aware tutoring workflow."""
 
     def validate_input_node(
         state: TutorGraphState,
     ) -> dict[str, Any]:
         return _validate_input(state)
 
+    def resolve_context_node(
+        state: TutorGraphState,
+    ) -> dict[str, Any]:
+        """Convert a contextual follow-up into a standalone query."""
+
+        retrieval_query = resolve_contextual_question(
+            question=state["question"],
+            conversation_history=state["conversation_history"],
+            client=client,
+        )
+
+        return {"retrieval_query": retrieval_query}
+
     def retrieve_context_node(
         state: TutorGraphState,
     ) -> dict[str, Any]:
-        """Retrieve educational chunks from the existing RAG service."""
+        """Retrieve educational chunks using the resolved question."""
 
         chunks = search_knowledge_base(
-            query=state["question"],
+            query=state["retrieval_query"],
             course_slug=state["course_slug"],
             topic_slug=state.get("topic_slug"),
             limit=state["limit"],
@@ -116,10 +136,10 @@ def build_tutor_graph(client: Any | None = None):
     def generate_answer_node(
         state: TutorGraphState,
     ) -> dict[str, Any]:
-        """Generate an answer grounded in retrieved educational content."""
+        """Generate a grounded answer using approved retrieved sources."""
 
         result = generate_grounded_answer(
-            question=state["question"],
+            question=state["retrieval_query"],
             retrieved_chunks=state["retrieved_chunks"],
             client=client,
         )
@@ -129,10 +149,10 @@ def build_tutor_graph(client: Any | None = None):
     def abstain_node(
         state: TutorGraphState,
     ) -> dict[str, Any]:
-        """Return the existing safe abstention response."""
+        """Return a safe response when retrieval finds no evidence."""
 
         result = generate_grounded_answer(
-            question=state["question"],
+            question=state["retrieval_query"],
             retrieved_chunks=[],
             client=client,
         )
@@ -142,12 +162,14 @@ def build_tutor_graph(client: Any | None = None):
     graph = StateGraph(TutorGraphState)
 
     graph.add_node("validate_input", validate_input_node)
+    graph.add_node("resolve_context", resolve_context_node)
     graph.add_node("retrieve_context", retrieve_context_node)
     graph.add_node("generate_answer", generate_answer_node)
     graph.add_node("abstain", abstain_node)
 
     graph.add_edge(START, "validate_input")
-    graph.add_edge("validate_input", "retrieve_context")
+    graph.add_edge("validate_input", "resolve_context")
+    graph.add_edge("resolve_context", "retrieve_context")
 
     graph.add_conditional_edges(
         "retrieve_context",
@@ -170,8 +192,9 @@ def run_tutor_graph(
     topic_slug: str | None = None,
     limit: int = 5,
     client: Any | None = None,
+    conversation_history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Run the tutor graph and return its existing answer-result format."""
+    """Run the conversation-aware tutor and return its answer result."""
 
     graph = build_tutor_graph(client=client)
 
@@ -181,6 +204,7 @@ def run_tutor_graph(
             "course_slug": course_slug,
             "topic_slug": topic_slug,
             "limit": limit,
+            "conversation_history": conversation_history or [],
         }
     )
 

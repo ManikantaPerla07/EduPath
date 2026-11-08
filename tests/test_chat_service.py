@@ -319,7 +319,9 @@ class ChatDatabaseTests(unittest.TestCase):
         )
 
         second_query = cursor.execute.call_args_list[1].args[0]
-        self.assertIn("ORDER BY created_at ASC", second_query)
+        self.assertIn("ORDER BY created_at DESC, message_id DESC", second_query)
+        self.assertIn("LIMIT %s", second_query)
+        self.assertIn("ORDER BY created_at ASC, message_id ASC", second_query)
 
     @patch("services.chat_service.load_database_url", return_value="test-db")
     @patch("services.chat_service.psycopg.connect")

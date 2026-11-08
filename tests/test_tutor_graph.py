@@ -1,4 +1,4 @@
-﻿"""Tests for the LangGraph-based EduPath tutor workflow."""
+"""Tests for the LangGraph-based EduPath tutor workflow."""
 
 import unittest
 from unittest.mock import patch
@@ -153,6 +153,130 @@ class TestTutorGraph(unittest.TestCase):
             retrieved_chunks=chunks,
             client=fake_client,
         )
+
+
+
+    def test_resolves_follow_up_before_retrieval(self):
+        history = [
+            {"role": "user", "content": "What is a Python variable?"},
+            {
+                "role": "assistant",
+                "content": "A variable refers to a value.",
+            },
+        ]
+
+        resolved_query = (
+            "Explain Python variable reassignment with an example."
+        )
+
+        expected_result = {
+            "answer": "A variable can refer to a new value. [S1]",
+            "insufficient_evidence": False,
+            "citations": [{"source_id": "S1"}],
+            "retrieved_count": 1,
+            "model": "test-model",
+            "reason": None,
+        }
+
+        chunks = [{"chunk_id": "chunk-1", "content": "Python variables."}]
+
+        with (
+            patch(
+                "agents.tutor_graph.resolve_contextual_question"
+            ) as resolve,
+            patch("agents.tutor_graph.search_knowledge_base") as retrieve,
+            patch("agents.tutor_graph.generate_grounded_answer") as generate,
+        ):
+            resolve.return_value = resolved_query
+            retrieve.return_value = chunks
+            generate.return_value = expected_result
+
+            result = run_tutor_graph(
+                question="Explain that with an example.",
+                course_slug="python-basics",
+                conversation_history=history,
+            )
+
+        self.assertEqual(result, expected_result)
+
+        resolve.assert_called_once_with(
+            question="Explain that with an example.",
+            conversation_history=history,
+            client=None,
+        )
+
+        retrieve.assert_called_once_with(
+            query=resolved_query,
+            course_slug="python-basics",
+            topic_slug=None,
+            limit=5,
+            client=None,
+        )
+
+        generate.assert_called_once_with(
+            question=resolved_query,
+            retrieved_chunks=chunks,
+            client=None,
+        )
+
+    def test_passes_empty_history_for_a_new_conversation(self):
+        with (
+            patch(
+                "agents.tutor_graph.resolve_contextual_question",
+                side_effect=lambda question, conversation_history, client:
+                    question,
+            ) as resolve,
+            patch("agents.tutor_graph.search_knowledge_base") as retrieve,
+            patch("agents.tutor_graph.generate_grounded_answer") as generate,
+        ):
+            retrieve.return_value = []
+            generate.return_value = {
+                "answer": "Insufficient evidence.",
+                "insufficient_evidence": True,
+                "citations": [],
+                "retrieved_count": 0,
+                "model": "test-model",
+                "reason": "no_retrieved_evidence",
+            }
+
+            run_tutor_graph(
+                question="What is Python?",
+                course_slug="python-basics",
+            )
+
+        resolve.assert_called_once_with(
+            question="What is Python?",
+            conversation_history=[],
+            client=None,
+        )
+
+        retrieve.assert_called_once_with(
+            query="What is Python?",
+            course_slug="python-basics",
+            topic_slug=None,
+            limit=5,
+            client=None,
+        )
+
+    def test_rejects_invalid_history_before_context_resolution(self):
+        with (
+            patch(
+                "agents.tutor_graph.resolve_contextual_question"
+            ) as resolve,
+            patch("agents.tutor_graph.search_knowledge_base") as retrieve,
+        ):
+            with self.assertRaisesRegex(
+                ValueError,
+                "Conversation history must be a list.",
+            ):
+                run_tutor_graph(
+                    question="Explain that.",
+                    course_slug="python-basics",
+                    conversation_history="invalid",
+                )
+
+            resolve.assert_not_called()
+            retrieve.assert_not_called()
 
 
 if __name__ == "__main__":

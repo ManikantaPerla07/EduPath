@@ -377,10 +377,20 @@ def get_chat_messages(
                     content,
                     citations,
                     created_at
-                FROM chat_messages
-                WHERE session_id = %s
-                ORDER BY created_at ASC, message_id ASC
-                LIMIT %s;
+                FROM (
+                    SELECT
+                        message_id,
+                        session_id,
+                        role,
+                        content,
+                        citations,
+                        created_at
+                    FROM chat_messages
+                    WHERE session_id = %s
+                    ORDER BY created_at DESC, message_id DESC
+                    LIMIT %s
+                ) AS recent_messages
+                ORDER BY created_at ASC, message_id ASC;
                 """,
                 (session_uuid, limit),
             )

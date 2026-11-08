@@ -329,3 +329,22 @@ Date: 2026-11-05
 - No database migration was required; Neon remains the source of truth for persisted conversations.
 - All 264 project tests passed, with 19 subtests passed.
 - Result: LangGraph-based tutoring workflow successfully integrated and locally verified.
+
+## 2026-11-08 - Conversation-Aware AI Tutoring
+
+- Updated chat-history retrieval to select the most recent requested messages while returning them in chronological order.
+- Added regression assertions for recent-message selection and chronological presentation.
+- Created `services/conversation_context_service.py` to resolve contextual follow-up questions into standalone retrieval queries.
+- Added bounded conversation context using at most 10 recent messages and an 8,000-character total history budget.
+- Treated previous conversation messages as untrusted context, not factual educational evidence or instructions.
+- Reused Gemini generation models and the existing temporary-server-error fallback for context resolution.
+- Extended the LangGraph state and added a conversation-context resolution node before semantic retrieval.
+- Kept grounded answer generation and citation validation connected to approved retrieved course chunks.
+- Updated the Streamlit Tutor to load recent history before saving the current learner question.
+- Passed previous conversation messages into the LangGraph workflow without changing the original saved transcript.
+- Added eight conversation-context service tests and three LangGraph context-integration tests.
+- Verified contextual follow-up behavior in Streamlit using a Python-variable question and a reference-based follow-up.
+- Verified Python compilation and Git whitespace checks.
+- No database migration or new paid service was required; Neon remains the conversation store.
+- All 275 project tests passed, with 19 subtests passed.
+- Result: Conversation-aware, source-grounded follow-up tutoring successfully integrated and locally verified.
