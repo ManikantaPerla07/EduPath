@@ -250,3 +250,26 @@ Date: 2026-11-05
 - Ran Python compilation successfully.
 - All 110 tests across the complete project test suite passed.
 - Result: Personalized study-plan generation and activity completion successfully integrated and locally verified.
+
+## 2026-11-08 - RAG Knowledge Base and Grounded Tutor
+
+- Created `services/text_processing_service.py` for PDF, TXT, and Markdown extraction, text normalization, and page-aware chunking.
+- Created `services/document_service.py` for validated educational document ingestion and admin-only shared resource uploads.
+- Added database migration `003_document_chunks.sql` with document chunk metadata and 768-dimensional pgvector embeddings.
+- Updated the migration runner and verified the expected 18 application tables.
+- Created `services/embedding_service.py` using Gemini Embedding 2 with 768-dimensional embeddings.
+- Implemented pending-chunk embedding storage with retry-safe processing and protection against duplicate embedding requests.
+- Created `services/retrieval_service.py` for semantic search using Neon PostgreSQL and pgvector cosine similarity.
+- Added course and topic filtering and source metadata retrieval for educational citations.
+- Created `services/answer_generation_service.py` for grounded educational answers using Gemini 3.8 Flash.
+- Added Gemini 3.5 Flash Lite fallback for temporary HTTP 500, 502, 503, and 504 server errors.
+- Implemented insufficient-evidence handling, citation identifier validation, and source metadata mapping.
+- Added tests for document extraction, ingestion, embeddings, vector storage, semantic retrieval, answer generation, and fallback handling.
+- Added a sanitized synthetic Python learning resource for end-to-end verification.
+- Successfully generated and stored a 768-dimensional Gemini embedding in Neon.
+- Verified idempotent embedding processing for an already embedded document.
+- Successfully executed a real semantic retrieval request against Neon.
+- Successfully generated a grounded tutor response using Gemini 3.8 Flash and verified its citation against the retrieved source.
+- OCR for scanned documents remains unsupported; documents without extractable text are rejected.
+- All 232 project tests passed.
+- Result: Document ingestion, embedding, semantic retrieval, and grounded answer generation successfully tested and integrated at the service level.

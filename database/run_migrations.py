@@ -28,6 +28,7 @@ EXPECTED_TABLES = {
     "chat_sessions",
     "chat_messages",
     "documents",
+    "document_chunks",
     "agent_runs",
     "model_usage_events",
 }
