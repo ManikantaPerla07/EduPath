@@ -4,10 +4,8 @@
 import psycopg
 import streamlit as st
 
-from services.answer_generation_service import (
-    AnswerGenerationError,
-    answer_question,
-)
+from agents.tutor_graph import run_tutor_graph
+from services.answer_generation_service import AnswerGenerationError
 from services.chat_service import (
     create_chat_session,
     delete_chat_session,
@@ -408,7 +406,7 @@ def _process_question(
             with st.spinner(
                 "EduPath is preparing your explanation..."
             ):
-                result = answer_question(
+                result = run_tutor_graph(
                     question=question,
                     course_slug=COURSE_SLUG,
                     limit=5,

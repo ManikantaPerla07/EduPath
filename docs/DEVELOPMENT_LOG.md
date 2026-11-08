@@ -312,3 +312,20 @@ Date: 2026-11-05
 - Confirmed that deleting a conversation preserves other conversations.
 - All 258 project tests passed.
 - Result: The first functional, persistent Streamlit AI Tutor interface successfully integrated and locally verified.
+
+## 2026-11-08 - LangGraph Tutor Workflow Integration
+
+- Added `langgraph>=1.0,<2.0` to runtime requirements.
+- Created `requirements-dev.txt` for development and test dependencies, including pytest.
+- Created the `agents` package and `agents/tutor_graph.py`.
+- Implemented graph input validation for learner questions, course slugs, topic slugs, and retrieval limits.
+- Added semantic retrieval and conditional routing based on whether educational source chunks were found.
+- Reused the existing grounded answer-generation service and its verified citation metadata.
+- Added a safe abstention path when retrieval returns no evidence.
+- Integrated `run_tutor_graph()` into the Streamlit AI Tutor.
+- Created `tests/test_tutor_graph.py` with five tests for successful retrieval, abstention, input validation, and dependency injection.
+- Verified the Tutor interface displays generated answers and expandable source citations.
+- Verified Python compilation and Git whitespace checks.
+- No database migration was required; Neon remains the source of truth for persisted conversations.
+- All 264 project tests passed, with 19 subtests passed.
+- Result: LangGraph-based tutoring workflow successfully integrated and locally verified.
