@@ -1,4 +1,4 @@
-﻿import psycopg
+import psycopg
 import streamlit as st
 
 from services.assessment_session_service import start_assessment
@@ -6,6 +6,26 @@ from services.assessment_submission_service import submit_assessment
 
 
 COURSE_SLUG = "python-basics"
+
+
+ADAPTIVE_QUESTION_COUNT = 5
+
+
+def _assessment_start_options(assessment_type: str) -> dict:
+    """Return the supported session options for an assessment mode."""
+
+    if assessment_type == "diagnostic":
+        return {"assessment_type": "diagnostic"}
+
+    if assessment_type in {"practice", "revision"}:
+        return {
+            "assessment_type": assessment_type,
+            "question_count": ADAPTIVE_QUESTION_COUNT,
+        }
+
+    raise ValueError("Invalid assessment type.")
+
+
 
 
 def _get_answer_letter(option: str) -> str:
@@ -67,16 +87,35 @@ def _change_question(step: int) -> None:
     )
 
 
-def _start_diagnostic(learner: dict) -> None:
-    """Create a new diagnostic assessment in the database."""
+def _assessment_mode_label(assessment_type: str) -> str:
+    """Return the learner-facing label for an assessment mode."""
+
+    labels = {
+        "diagnostic": "Diagnostic Assessment",
+        "practice": "Adaptive Practice",
+        "revision": "Targeted Revision",
+    }
 
     try:
-        with st.spinner("Preparing your Python assessment..."):
+        return labels[assessment_type]
+    except (KeyError, TypeError):
+        raise ValueError("Invalid assessment type.")
 
+
+def _start_assessment(
+    learner: dict,
+    assessment_type: str,
+) -> None:
+    """Create an assessment session for the selected learning mode."""
+
+    try:
+        options = _assessment_start_options(assessment_type)
+
+        with st.spinner("Preparing your Python assessment..."):
             assessment = start_assessment(
                 user_id=learner["user_id"],
                 course_slug=COURSE_SLUG,
-                assessment_type="diagnostic",
+                **options,
             )
 
         st.session_state["edupath_active_assessment"] = assessment
@@ -88,7 +127,6 @@ def _start_diagnostic(learner: dict) -> None:
 
         st.session_state.pop("edupath_assessment_result", None)
 
-        # Refresh only this assessment fragment.
         st.rerun(scope="fragment")
 
     except (ValueError, PermissionError) as error:
@@ -99,6 +137,12 @@ def _start_diagnostic(learner: dict) -> None:
             "Unable to create your assessment. "
             "Please check your database connection and try again."
         )
+
+
+def _start_diagnostic(learner: dict) -> None:
+    """Preserve the existing diagnostic-assessment entry point."""
+
+    _start_assessment(learner, "diagnostic")
 
 
 def _render_question(assessment: dict) -> None:
@@ -136,6 +180,12 @@ def _render_question(assessment: dict) -> None:
     # Restore a previously selected option when revisiting a question.
     if widget_key not in st.session_state and saved_option is not None:
         st.session_state[widget_key] = saved_option
+
+    # Identify the selected assessment mode.
+    st.caption(
+        f"{_assessment_mode_label(assessment['assessment_type'])} | "
+        f"{total_questions} questions"
+    )
 
     # Question progress.
     st.progress(
@@ -331,7 +381,7 @@ def _render_results(result: dict) -> None:
     st.divider()
 
     if st.button(
-        "Start another diagnostic assessment",
+        "Start another assessment",
         type="primary",
         use_container_width=True,
     ):
@@ -367,23 +417,58 @@ def render_assessment(learner: dict) -> None:
 
     st.header("Python Programming")
 
-    st.subheader("Diagnostic Assessment")
-
     st.write(
-        "Test your current Python knowledge across variables, "
-        "operators, conditionals, loops, functions, collections, "
-        "strings, and problem solving."
+        "Choose an assessment mode based on what you want to achieve."
     )
 
-    st.info(
-        "Your diagnostic assessment contains 27 multiple-choice "
-        "questions. You can navigate between questions and leave "
-        "questions unanswered."
-    )
+    diagnostic_col, practice_col, revision_col = st.columns(3)
 
-    if st.button(
-        "Start diagnostic assessment",
-        type="primary",
-        use_container_width=True,
-    ):
-        _start_diagnostic(learner)
+    with diagnostic_col:
+        st.subheader("Diagnostic")
+        st.caption(
+            "Check your current Python knowledge across all course topics."
+        )
+        st.info(
+            "Uses the full available question bank. "
+            "It does not adapt question selection to previous performance."
+        )
+
+        if st.button(
+            "Start diagnostic",
+            use_container_width=True,
+            type="primary",
+            key="edupath_start_diagnostic",
+        ):
+            _start_assessment(learner, "diagnostic")
+
+    with practice_col:
+        st.subheader("Adaptive Practice")
+        st.caption(
+            "Practise using questions selected from your learning progress."
+        )
+        st.info(
+            "Five questions selected using topic mastery and recent attempts."
+        )
+
+        if st.button(
+            "Start practice",
+            use_container_width=True,
+            key="edupath_start_practice",
+        ):
+            _start_assessment(learner, "practice")
+
+    with revision_col:
+        st.subheader("Targeted Revision")
+        st.caption(
+            "Give additional attention to topics where you need improvement."
+        )
+        st.info(
+            "Prioritizes weaker topics and adapts question difficulty."
+        )
+
+        if st.button(
+            "Start revision",
+            use_container_width=True,
+            key="edupath_start_revision",
+        ):
+            _start_assessment(learner, "revision")

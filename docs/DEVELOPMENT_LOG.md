@@ -373,3 +373,33 @@ Date: 2026-11-05
 - Verified the complete test suite: 295 passed, 19 subtests passed.
 - Verified Python compilation and `git diff --check`.
 - No database migration was required.
+
+## 2026-11-09 — Adaptive Practice and Assessment
+
+- Added `services/adaptive_question_service.py` for progress-based question
+  selection using learner topic mastery.
+- Prioritized topics needing revision, followed by unassessed topics and
+  topics with stronger progress.
+- Mapped mastery statuses to preferred question difficulty:
+  easy for unassessed and revision topics, medium for developing topics,
+  and hard for mastery candidates.
+- Spread question selection across topics before selecting additional
+  questions from previously represented topics.
+- Avoided the learner's 15 most recently answered question-bank items when
+  fresh alternatives were available; reused questions when necessary.
+- Integrated adaptive selection into `start_assessment()` for practice and
+  revision sessions.
+- Preserved the original diagnostic assessment behavior and full question-bank
+  selection.
+- Added five-question Adaptive Practice and Targeted Revision modes to the
+  Streamlit assessment interface.
+- Added assessment-mode labels to the active question screen.
+- Preserved safe learner question payloads through the existing
+  `build_learner_question()` allowlist and assessment question snapshots.
+- Added unit and integration tests for adaptive selection, session creation,
+  assessment modes, and mode labels.
+- Verified the live Diagnostic screen displays 27 questions and the live
+  Adaptive Practice screen displays 5 questions.
+- Verified the complete project test suite: 319 passed, 19 subtests passed.
+- Verified Python compilation and `git diff --check`.
+- No database migration was required.

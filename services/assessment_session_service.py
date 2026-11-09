@@ -1,4 +1,4 @@
-﻿from decimal import Decimal
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -10,6 +10,9 @@ from services.assessment_service import (
     fetch_question_records,
     build_learner_question,
 )
+from services.adaptive_question_service import (
+    select_adaptive_questions,
+)
 
 
 VALID_ASSESSMENT_TYPES = {"diagnostic", "practice", "revision"}
@@ -20,6 +23,7 @@ def start_assessment(
     course_slug: str,
     assessment_type: str = "diagnostic",
     topic_slug: str | None = None,
+    question_count: int = 5,
 ) -> dict[str, Any]:
     """
     Create an assessment session and snapshot its questions.
@@ -105,6 +109,85 @@ def start_assessment(
                 raise ValueError("Course not found.")
 
             course_id = course_row[0]
+
+            # Practice and revision assessments adapt to learner progress.
+            # Diagnostic assessments deliberately retain the original
+            # full-question-bank behavior.
+            if assessment_type in {"practice", "revision"}:
+
+                # Load mastery status for every topic in this course.
+                cursor.execute(
+                    """
+                    SELECT
+                        t.topic_slug,
+                        COALESCE(
+                            lp.mastery_status,
+                            'not_assessed'
+                        ) AS mastery_status,
+                        t.sequence_number AS sequence_order
+                    FROM topics AS t
+                    LEFT JOIN learner_topic_progress AS lp
+                        ON lp.topic_id = t.topic_id
+                       AND lp.user_id = %s
+                    WHERE t.course_id = %s
+                    ORDER BY t.sequence_number;
+                    """,
+                    (learner_id, course_id),
+                )
+
+                progress_rows = cursor.fetchall()
+
+                topic_progress = [
+                    {
+                        "topic_slug": row[0],
+                        "mastery_status": row[1],
+                        "sequence_order": row[2],
+                    }
+                    for row in progress_rows
+                ]
+
+                # Collect recently answered questions from submitted sessions.
+                cursor.execute(
+                    """
+                    SELECT i.question_bank_id
+                    FROM assessment_items AS i
+                    JOIN assessment_sessions AS s
+                        ON s.assessment_id = i.assessment_id
+                    JOIN assessment_responses AS r
+                        ON r.item_id = i.item_id
+                    WHERE s.user_id = %s
+                      AND s.course_id = %s
+                      AND s.status = 'submitted'
+                      AND i.question_bank_id IS NOT NULL
+                      AND r.submitted_answer
+                          IS DISTINCT FROM 'null'::jsonb
+                    ORDER BY
+                        s.submitted_at DESC,
+                        i.question_order DESC
+                    LIMIT 15;
+                    """,
+                    (learner_id, course_id),
+                )
+
+                recent_rows = cursor.fetchall()
+
+                recently_attempted_ids = {
+                    str(row[0])
+                    for row in recent_rows
+                    if row[0] is not None
+                }
+
+                records = select_adaptive_questions(
+                    questions=records,
+                    topic_progress=topic_progress,
+                    recently_attempted_question_ids=recently_attempted_ids,
+                    question_count=question_count,
+                )
+
+                if not records:
+                    raise ValueError(
+                        "No suitable questions are currently available."
+                    )
 
             # Create the assessment session.
             cursor.execute(

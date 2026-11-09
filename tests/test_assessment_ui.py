@@ -61,3 +61,105 @@ class AssessmentUITests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class AssessmentModeTests(unittest.TestCase):
+
+    def test_diagnostic_keeps_original_question_selection(self):
+        from ui.assessment import _assessment_start_options
+
+        self.assertEqual(
+            _assessment_start_options("diagnostic"),
+            {"assessment_type": "diagnostic"},
+        )
+
+    def test_practice_requests_five_adaptive_questions(self):
+        from ui.assessment import _assessment_start_options
+
+        self.assertEqual(
+            _assessment_start_options("practice"),
+            {
+                "assessment_type": "practice",
+                "question_count": 5,
+            },
+        )
+
+    def test_revision_requests_five_adaptive_questions(self):
+        from ui.assessment import _assessment_start_options
+
+        self.assertEqual(
+            _assessment_start_options("revision"),
+            {
+                "assessment_type": "revision",
+                "question_count": 5,
+            },
+        )
+
+    def test_unknown_assessment_mode_is_rejected(self):
+        from ui.assessment import _assessment_start_options
+
+        with self.assertRaises(ValueError):
+            _assessment_start_options("exam")
+
+class AssessmentModeLabelTests(unittest.TestCase):
+
+    def test_diagnostic_label(self):
+        from ui.assessment import _assessment_mode_label
+
+        self.assertEqual(
+            _assessment_mode_label("diagnostic"),
+            "Diagnostic Assessment",
+        )
+
+    def test_practice_label(self):
+        from ui.assessment import _assessment_mode_label
+
+        self.assertEqual(
+            _assessment_mode_label("practice"),
+            "Adaptive Practice",
+        )
+
+    def test_revision_label(self):
+        from ui.assessment import _assessment_mode_label
+
+        self.assertEqual(
+            _assessment_mode_label("revision"),
+            "Targeted Revision",
+        )
+
+    def test_unknown_mode_is_rejected(self):
+        from ui.assessment import _assessment_mode_label
+
+        with self.assertRaises(ValueError):
+            _assessment_mode_label("unknown")
+
+class AssessmentModeLabelTests(unittest.TestCase):
+
+    def test_diagnostic_label(self):
+        from ui.assessment import _assessment_mode_label
+
+        self.assertEqual(
+            _assessment_mode_label("diagnostic"),
+            "Diagnostic Assessment",
+        )
+
+    def test_practice_label(self):
+        from ui.assessment import _assessment_mode_label
+
+        self.assertEqual(
+            _assessment_mode_label("practice"),
+            "Adaptive Practice",
+        )
+
+    def test_revision_label(self):
+        from ui.assessment import _assessment_mode_label
+
+        self.assertEqual(
+            _assessment_mode_label("revision"),
+            "Targeted Revision",
+        )
+
+    def test_unknown_mode_is_rejected(self):
+        from ui.assessment import _assessment_mode_label
+
+        with self.assertRaises(ValueError):
+            _assessment_mode_label("unknown")
