@@ -348,3 +348,28 @@ Date: 2026-11-05
 - No database migration or new paid service was required; Neon remains the conversation store.
 - All 275 project tests passed, with 19 subtests passed.
 - Result: Conversation-aware, source-grounded follow-up tutoring successfully integrated and locally verified.
+
+## 2026-11-09 — Progress-Based Adaptive Tutoring
+
+- Added `services/adaptive_learning_service.py` to map learner topic mastery
+  statuses to deterministic teaching guidance.
+- Selected the most relevant retrieved topic and matched it with the learner's
+  topic progress to determine the teaching approach.
+- Extended grounded answer generation with optional teaching guidance.
+  Guidance controls explanation depth, pacing, and practice difficulty only;
+  retrieved knowledge sources remain the factual authority.
+- Added an `adapt_teaching` node to the LangGraph tutoring workflow.
+  Adaptation runs only when relevant knowledge chunks are retrieved.
+- Passed the authenticated learner ID from the Streamlit tutor UI into the graph.
+- Persisted the personalization approach in assistant messages so it remains
+  visible when conversation history is reloaded.
+- Refactored question processing so the saved Neon transcript is the single
+  source used to render conversation messages.
+- Improved conversation-context resolution: standalone questions are preserved
+  without unnecessary rewriting, while questions containing contextual
+  references can still use conversation history.
+- Added tests for adaptive profiles, answer-generation guidance, graph
+  integration, and standalone-question preservation.
+- Verified the complete test suite: 295 passed, 19 subtests passed.
+- Verified Python compilation and `git diff --check`.
+- No database migration was required.

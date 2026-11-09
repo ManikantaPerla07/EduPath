@@ -1,9 +1,12 @@
-﻿"""LangGraph orchestration for the EduPath grounded AI tutor."""
+"""LangGraph orchestration for the adaptive, grounded EduPath tutor."""
 
 from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from services.adaptive_learning_service import (
+    get_learner_teaching_profile,
+)
 from services.answer_generation_service import (
     MAX_QUESTION_LENGTH,
     generate_grounded_answer,
@@ -25,9 +28,11 @@ class TutorGraphState(TypedDict, total=False):
     course_slug: str
     topic_slug: str | None
     limit: int
+    user_id: str | None
     conversation_history: list[dict[str, Any]]
     retrieval_query: str
     retrieved_chunks: list[dict[str, Any]]
+    teaching_profile: dict[str, Any] | None
     answer_result: dict[str, Any]
 
 
@@ -78,17 +83,25 @@ def _validate_input(state: TutorGraphState) -> dict[str, Any]:
     if not isinstance(conversation_history, list):
         raise ValueError("Conversation history must be a list.")
 
+    user_id = state.get("user_id")
+
+    if user_id is not None and (
+        not isinstance(user_id, str) or not user_id.strip()
+    ):
+        raise ValueError("Learner user ID must be a non-empty string.")
+
     return {
         "question": question,
         "course_slug": course_slug.strip(),
         "topic_slug": topic_slug.strip() if topic_slug else None,
         "limit": limit,
         "conversation_history": conversation_history,
+        "user_id": user_id.strip() if user_id else None,
     }
 
 
 def build_tutor_graph(client: Any | None = None):
-    """Build and compile the conversation-aware tutoring workflow."""
+    """Build and compile the adaptive tutoring workflow."""
 
     def validate_input_node(
         state: TutorGraphState,
@@ -126,23 +139,43 @@ def build_tutor_graph(client: Any | None = None):
     def route_after_retrieval(
         state: TutorGraphState,
     ) -> str:
-        """Choose the next node according to retrieval results."""
+        """Route according to whether approved educational sources exist."""
 
         if state.get("retrieved_chunks"):
-            return "generate_answer"
+            return "adapt_teaching"
 
         return "abstain"
+
+    def adapt_teaching_node(
+        state: TutorGraphState,
+    ) -> dict[str, Any]:
+        """Load the learner's progress for the retrieved primary topic."""
+
+        profile = get_learner_teaching_profile(
+            user_id=state.get("user_id"),
+            course_slug=state["course_slug"],
+            retrieved_chunks=state["retrieved_chunks"],
+        )
+
+        return {"teaching_profile": profile}
 
     def generate_answer_node(
         state: TutorGraphState,
     ) -> dict[str, Any]:
-        """Generate a grounded answer using approved retrieved sources."""
+        """Generate a grounded answer using adaptive teaching guidance."""
 
-        result = generate_grounded_answer(
-            question=state["retrieval_query"],
-            retrieved_chunks=state["retrieved_chunks"],
-            client=client,
-        )
+        arguments = {
+            "question": state["retrieval_query"],
+            "retrieved_chunks": state["retrieved_chunks"],
+            "client": client,
+        }
+
+        teaching_profile = state.get("teaching_profile")
+
+        if teaching_profile is not None:
+            arguments["teaching_guidance"] = teaching_profile
+
+        result = generate_grounded_answer(**arguments)
 
         return {"answer_result": result}
 
@@ -164,6 +197,7 @@ def build_tutor_graph(client: Any | None = None):
     graph.add_node("validate_input", validate_input_node)
     graph.add_node("resolve_context", resolve_context_node)
     graph.add_node("retrieve_context", retrieve_context_node)
+    graph.add_node("adapt_teaching", adapt_teaching_node)
     graph.add_node("generate_answer", generate_answer_node)
     graph.add_node("abstain", abstain_node)
 
@@ -175,11 +209,12 @@ def build_tutor_graph(client: Any | None = None):
         "retrieve_context",
         route_after_retrieval,
         {
-            "generate_answer": "generate_answer",
+            "adapt_teaching": "adapt_teaching",
             "abstain": "abstain",
         },
     )
 
+    graph.add_edge("adapt_teaching", "generate_answer")
     graph.add_edge("generate_answer", END)
     graph.add_edge("abstain", END)
 
@@ -193,8 +228,9 @@ def run_tutor_graph(
     limit: int = 5,
     client: Any | None = None,
     conversation_history: list[dict[str, Any]] | None = None,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
-    """Run the conversation-aware tutor and return its answer result."""
+    """Run the adaptive tutor and return its grounded answer result."""
 
     graph = build_tutor_graph(client=client)
 
@@ -205,6 +241,7 @@ def run_tutor_graph(
             "topic_slug": topic_slug,
             "limit": limit,
             "conversation_history": conversation_history or [],
+            "user_id": user_id,
         }
     )
 
@@ -212,5 +249,14 @@ def run_tutor_graph(
 
     if not isinstance(result, dict):
         raise RuntimeError("The tutor graph did not produce an answer result.")
+
+    # Expose the selected teaching approach as display metadata.
+    teaching_profile = final_state.get("teaching_profile")
+
+    if teaching_profile is not None:
+        result = {
+            **result,
+            "teaching_profile": teaching_profile,
+        }
 
     return result

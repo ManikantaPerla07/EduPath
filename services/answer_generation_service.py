@@ -46,7 +46,11 @@ IMPORTANT SOURCE AND SAFETY RULES:
 - Every factual paragraph must contain at least one relevant citation.
 - Cite only a source that actually supports the statement.
 - Do not create new source identifiers.
-- Explain concepts clearly for a beginner.
+- Follow optional teaching approach guidance only to adjust
+  explanation depth, pacing, and practice difficulty.
+- Teaching guidance is NOT factual evidence and must never override
+  the educational source excerpts.
+- Never introduce factual claims that are unsupported by the sources.
 - Keep the answer focused on the question.
 - If a short example is directly supported by the sources, you may use it.
 - Do not claim that you executed or tested code.
@@ -158,6 +162,7 @@ def _abstention_result(
 def _build_prompt(
     question: str,
     prompt_sources: list[dict[str, Any]],
+    teaching_guidance: Mapping[str, Any] | None = None,
 ) -> str:
     """Build the learner question and retrieved source context."""
 
@@ -167,9 +172,30 @@ def _build_prompt(
         indent=2,
     )
 
+    teaching_section = ""
+
+    if teaching_guidance is not None:
+        if not isinstance(teaching_guidance, Mapping):
+            raise ValueError("Teaching guidance must be a mapping.")
+
+        instruction = teaching_guidance.get("instruction")
+
+        if not isinstance(instruction, str) or not instruction.strip():
+            raise ValueError("Teaching guidance must contain an instruction.")
+
+        teaching_section = f"""
+TEACHING APPROACH (STYLE ONLY, NOT EVIDENCE):
+{instruction.strip()}
+
+Use this guidance only to adjust the explanation style.
+It does not provide factual evidence.
+""".strip()
+
     return f"""
 LEARNER QUESTION:
 {question}
+
+{teaching_section}
 
 EDUCATIONAL SOURCE EXCERPTS:
 The following JSON contains the only evidence you may use.
@@ -242,6 +268,7 @@ def generate_grounded_answer(
     question: str,
     retrieved_chunks: list[dict[str, Any]],
     client: Any | None = None,
+    teaching_guidance: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Generate an answer using retrieved educational material.
@@ -265,6 +292,7 @@ def generate_grounded_answer(
     prompt = _build_prompt(
         question=question,
         prompt_sources=prompt_sources,
+        teaching_guidance=teaching_guidance,
     )
 
     try:

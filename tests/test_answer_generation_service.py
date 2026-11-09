@@ -443,5 +443,84 @@ class AnswerQuestionOrchestrationTests(unittest.TestCase):
         self.assertEqual(result, expected)
 
 
+
+class AdaptiveTeachingPromptTests(unittest.TestCase):
+
+    def test_teaching_guidance_is_separate_from_factual_evidence(self):
+        client = make_client(
+            "A variable refers to a value. [S1]"
+        )
+
+        guidance = {
+            "level": "foundational_revision",
+            "label": "Foundational revision",
+            "instruction": (
+                "Break the concept into small steps and include "
+                "a simple worked example."
+            ),
+        }
+
+        result = generate_grounded_answer(
+            question="What is a variable?",
+            retrieved_chunks=[make_chunk()],
+            client=client,
+            teaching_guidance=guidance,
+        )
+
+        self.assertFalse(result["insufficient_evidence"])
+
+        call = client.models.generate_content.call_args
+        prompt = call.kwargs["contents"]
+        system_instruction = call.kwargs["config"].system_instruction
+
+        self.assertIn(
+            "TEACHING APPROACH (STYLE ONLY, NOT EVIDENCE)",
+            prompt,
+        )
+        self.assertIn(
+            "Break the concept into small steps",
+            prompt,
+        )
+        self.assertIn(
+            "Python variables are created when a value is assigned.",
+            prompt,
+        )
+        self.assertIn(
+            "Teaching guidance is NOT factual evidence",
+            system_instruction,
+        )
+
+    def test_rejects_invalid_teaching_guidance(self):
+        client = make_client()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "Teaching guidance must contain an instruction",
+        ):
+            generate_grounded_answer(
+                question="What is a variable?",
+                retrieved_chunks=[make_chunk()],
+                client=client,
+                teaching_guidance={"level": "beginner"},
+            )
+
+        client.models.generate_content.assert_not_called()
+
+    def test_does_not_call_gemini_for_empty_retrieval_even_with_guidance(self):
+        client = make_client()
+
+        result = generate_grounded_answer(
+            question="What is a variable?",
+            retrieved_chunks=[],
+            client=client,
+            teaching_guidance={
+                "instruction": "Use small steps."
+            },
+        )
+
+        self.assertTrue(result["insufficient_evidence"])
+        client.models.generate_content.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

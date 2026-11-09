@@ -418,46 +418,54 @@ def _process_question(
         )
         return
 
-    with st.chat_message("user"):
-        st.markdown(saved_user_message["content"])
-
     # Generate and save the assistant's answer.
+    # The saved transcript will be the only source used for rendering.
     try:
-        with st.chat_message("assistant"):
-
-            with st.spinner(
-                "EduPath is preparing your explanation..."
-            ):
-                result = run_tutor_graph(
-                    question=question,
-                    course_slug=COURSE_SLUG,
-                    limit=5,
-                    conversation_history=conversation_history,
-                )
-
-            answer = result["answer"]
-            citations = result["citations"]
-
-            st.markdown(answer)
-            _render_citations(citations)
-
-            if result["insufficient_evidence"]:
-                st.caption(
-                    "The approved learning materials did not contain "
-                    "enough evidence for this question."
-                )
-            else:
-                st.caption(
-                    f"Generated with {result['model']}."
-                )
-
-            save_chat_message(
+        with st.spinner("EduPath is preparing your explanation..."):
+            result = run_tutor_graph(
+                question=question,
+                course_slug=COURSE_SLUG,
+                limit=5,
+                conversation_history=conversation_history,
                 user_id=user_id,
-                session_id=session_id,
-                role="assistant",
-                content=answer,
-                citations=citations,
             )
+
+        answer = result["answer"]
+        citations = result["citations"]
+
+        if result["insufficient_evidence"]:
+            answer += (
+                "\n\n"
+                "*The approved learning materials did not contain "
+                "enough evidence for this question.*"
+            )
+        elif result.get("model"):
+            answer += f"\n\n*Generated with {result['model']}.*"
+
+        teaching_profile = result.get("teaching_profile")
+
+        if isinstance(teaching_profile, dict):
+            teaching_label = teaching_profile.get("label")
+            mastery_status = teaching_profile.get("mastery_status")
+
+            if (
+                isinstance(teaching_label, str)
+                and isinstance(mastery_status, str)
+            ):
+                readable_status = mastery_status.replace("_", " ")
+                answer += (
+                    "\n\n---\n\n"
+                    f"*Personalized approach: {teaching_label} "
+                    f"- {readable_status}*"
+                )
+
+        save_chat_message(
+            user_id=user_id,
+            session_id=session_id,
+            role="assistant",
+            content=answer,
+            citations=citations,
+        )
 
     except (AnswerGenerationError, ConversationContextError):
         st.error(

@@ -1,4 +1,4 @@
-﻿"""Tests for contextual follow-up question resolution."""
+"""Tests for contextual follow-up question resolution."""
 
 import unittest
 from types import SimpleNamespace
@@ -153,6 +153,47 @@ class ConversationContextTests(unittest.TestCase):
             f'"Old message {MAX_CONTEXT_HISTORY_MESSAGES + 2}"',
             prompt,
         )
+
+
+
+    def test_preserves_standalone_question_with_history(self):
+        client = make_client()
+
+        question = (
+            "Explain Python variables and reassignment "
+            "step by step with an example."
+        )
+
+        history = [
+            {"role": "user", "content": "What is a Python variable?"},
+            {
+                "role": "assistant",
+                "content": "A variable stores a value.",
+            },
+        ]
+
+        result = resolve_contextual_question(
+            question=question,
+            conversation_history=history,
+            client=client,
+        )
+
+        self.assertEqual(result, question)
+        client.models.generate_content.assert_not_called()
+
+    def test_resolves_question_that_references_previous_context(self):
+        client = make_client("Explain Python variable reassignment.")
+
+        result = resolve_contextual_question(
+            question="Explain that again.",
+            conversation_history=[
+                {"role": "user", "content": "What is a Python variable?"}
+            ],
+            client=client,
+        )
+
+        self.assertEqual(result, "Explain Python variable reassignment.")
+        client.models.generate_content.assert_called_once()
 
 
 if __name__ == "__main__":

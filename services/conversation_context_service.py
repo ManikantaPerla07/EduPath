@@ -1,6 +1,7 @@
-﻿"""Resolve contextual learner follow-up questions into standalone queries."""
+"""Resolve contextual learner follow-up questions into standalone queries."""
 
 import json
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -21,6 +22,19 @@ MAX_HISTORY_MESSAGE_CHARS = 1500
 MAX_CONTEXT_HISTORY_CHARS = 8000
 MAX_RESOLVED_QUESTION_LENGTH = 2000
 MAX_OUTPUT_TOKENS = 256
+
+CONTEXT_REFERENCE_PATTERN = re.compile(
+    r"\b(?:that|this|it|they|them|those|these|same|previous|"
+    r"earlier|above|again)\b",
+    re.IGNORECASE,
+)
+
+
+def _needs_context_resolution(question: str) -> bool:
+    """Check whether the question contains a reference needing history."""
+
+    return bool(CONTEXT_REFERENCE_PATTERN.search(question))
+
 
 SYSTEM_INSTRUCTION = """
 You are EduPath's conversation-context resolver.
@@ -176,6 +190,11 @@ def resolve_contextual_question(
     prepared_history = _prepare_history(conversation_history)
 
     if not prepared_history:
+        return question
+
+    # Preserve complete standalone questions without an unnecessary
+    # Gemini rewrite that could remove requested details.
+    if not _needs_context_resolution(question):
         return question
 
     prompt = _build_prompt(
