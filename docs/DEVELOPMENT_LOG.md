@@ -436,3 +436,14 @@ Date: 2026-11-05
 - Verified the full project test suite: 353 passed, 19 subtests passed.
 - Verified Python compilation and `git diff --check`.
 - No database migration was required.
+
+## 2026-11-09 - Local and Hosted Secret Configuration
+
+- Added a shared secret loader supporting local Streamlit secrets and
+  Streamlit-hosted runtime secrets.
+- Updated database and Gemini credential loading to use the shared loader.
+- Preserved local secrets-file support for development.
+- Added tests for local loading, hosted loading, and missing credentials.
+- Updated the existing missing-secret test for the new fallback behavior.
+- Verified the complete test suite: 356 passed, 19 subtests passed.
+- Verified Python compilation and `git diff --check`.

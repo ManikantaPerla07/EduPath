@@ -1,9 +1,10 @@
 ﻿from pathlib import Path
-import tomllib
 from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
+
+from services.secret_config import load_secret
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -13,17 +14,8 @@ VALID_DIFFICULTIES = {"easy", "medium", "hard"}
 
 
 def load_database_url() -> str:
-    """Load the database connection string from local secrets."""
-
-    with SECRETS_FILE.open("rb") as file:
-        secrets = tomllib.load(file)
-
-    database_url = secrets.get("DATABASE_URL")
-
-    if not database_url:
-        raise ValueError("DATABASE_URL is missing.")
-
-    return database_url
+    """Load the database URL from local or hosted Streamlit secrets."""
+    return load_secret("DATABASE_URL", SECRETS_FILE)
 
 
 def fetch_question_records(

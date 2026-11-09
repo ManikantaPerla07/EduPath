@@ -6,10 +6,10 @@ from uuid import UUID
 import psycopg
 
 from services.assessment_service import load_database_url
+from services.secret_config import load_secret
 
 from pathlib import Path
 import math
-import tomllib
 from typing import Any
 
 from google import genai
@@ -27,24 +27,8 @@ class EmbeddingServiceError(RuntimeError):
 
 
 def load_gemini_api_key() -> str:
-    """Load the Gemini API key from local Streamlit secrets."""
-
-    if not SECRETS_FILE.exists():
-        raise FileNotFoundError(
-            "The local Streamlit secrets file was not found."
-        )
-
-    with SECRETS_FILE.open("rb") as file:
-        secrets = tomllib.load(file)
-
-    api_key = secrets.get("GEMINI_API_KEY")
-
-    if not isinstance(api_key, str) or not api_key.strip():
-        raise ValueError(
-            "GEMINI_API_KEY is missing from Streamlit secrets."
-        )
-
-    return api_key.strip()
+    """Load the Gemini API key from local or hosted Streamlit secrets."""
+    return load_secret("GEMINI_API_KEY", SECRETS_FILE)
 
 
 def prepare_document_input(

@@ -271,15 +271,18 @@ class GeminiSecretTests(unittest.TestCase):
                     "test-key-value",
                 )
 
-    def test_missing_secret_file_is_rejected(self):
+    def test_missing_secret_file_and_runtime_secret_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             missing_file = Path(directory) / "missing.toml"
 
             with patch(
                 "services.embedding_service.SECRETS_FILE",
                 missing_file,
+            ), patch(
+                "services.secret_config._read_streamlit_secret",
+                return_value=None,
             ):
-                with self.assertRaises(FileNotFoundError):
+                with self.assertRaisesRegex(ValueError, "GEMINI_API_KEY"):
                     load_gemini_api_key()
 
     def test_missing_api_key_is_rejected(self):
