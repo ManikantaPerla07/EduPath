@@ -403,3 +403,36 @@ Date: 2026-11-05
 - Verified the complete project test suite: 319 passed, 19 subtests passed.
 - Verified Python compilation and `git diff --check`.
 - No database migration was required.
+
+## 2026-11-09 - Dynamic Adaptive Assessments
+
+- Changed Adaptive Practice and Targeted Revision sessions to start with
+  only their first question while retaining a five-question target.
+- Added `services/adaptive_assessment_service.py` to grade each submitted
+  answer against the server-side assessment snapshot.
+- Added incremental response persistence, session ownership checks, and
+  session locking so an answer cannot be submitted twice or against
+  another learner's assessment.
+- Added dynamic next-question selection based on the previous answer:
+  correct answers prefer a higher difficulty, while incorrect answers
+  prefer a lower difficulty.
+- Prioritized the current topic when eligible questions remain, with
+  fallback to other topics and available difficulty levels.
+- Prevented question reuse within the current adaptive session and
+  continued avoiding recently attempted questions when alternatives exist.
+- Finalized adaptive sessions after five answers or when no unused
+  eligible questions remain, then refreshed learner topic progress.
+- Updated the Streamlit interface to show one adaptive question at a time,
+  immediate correctness feedback, explanations, and the next selected
+  question.
+- Preserved Diagnostic Assessment's existing navigation and batch
+  submission workflow.
+- Added tests for difficulty transitions, question selection, answer
+  validation, incremental submission, and session finalization.
+- Manually verified Adaptive Practice and Targeted Revision through the
+  Streamlit interface, including question progression and final results.
+- Manually verified that Diagnostic Assessment still displays 27 questions
+  with Previous and Next navigation.
+- Verified the full project test suite: 353 passed, 19 subtests passed.
+- Verified Python compilation and `git diff --check`.
+- No database migration was required.

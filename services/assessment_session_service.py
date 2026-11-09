@@ -11,6 +11,7 @@ from services.assessment_service import (
     build_learner_question,
 )
 from services.adaptive_question_service import (
+    MAX_ADAPTIVE_QUESTIONS,
     select_adaptive_questions,
 )
 
@@ -44,6 +45,17 @@ def start_assessment(
 
     if assessment_type not in VALID_ASSESSMENT_TYPES:
         raise ValueError("Invalid assessment type.")
+
+    if assessment_type in {"practice", "revision"}:
+        if (
+            isinstance(question_count, bool)
+            or not isinstance(question_count, int)
+            or question_count != MAX_ADAPTIVE_QUESTIONS
+        ):
+            raise ValueError(
+                f"Adaptive assessments must contain "
+                f"{MAX_ADAPTIVE_QUESTIONS} questions."
+            )
 
     if topic_slug is not None:
         if not isinstance(topic_slug, str) or not topic_slug.strip():
@@ -181,7 +193,9 @@ def start_assessment(
                     questions=records,
                     topic_progress=topic_progress,
                     recently_attempted_question_ids=recently_attempted_ids,
-                    question_count=question_count,
+                    # Snapshot only the first question. Remaining
+                    # questions are selected after each graded answer.
+                    question_count=1,
                 )
 
                 if not records:
@@ -263,6 +277,10 @@ def start_assessment(
         "assessment_id": str(assessment_id),
         "assessment_type": assessment_type,
         "status": "in_progress",
-        "total_questions": len(learner_questions),
+        "total_questions": (
+            question_count
+            if assessment_type in {"practice", "revision"}
+            else len(learner_questions)
+        ),
         "questions": learner_questions,
     }

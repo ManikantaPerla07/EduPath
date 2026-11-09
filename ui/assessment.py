@@ -3,12 +3,16 @@ import streamlit as st
 
 from services.assessment_session_service import start_assessment
 from services.assessment_submission_service import submit_assessment
+from services.adaptive_assessment_service import submit_adaptive_answer
+from services.adaptive_question_service import (
+    MAX_ADAPTIVE_QUESTIONS,
+)
 
 
 COURSE_SLUG = "python-basics"
 
 
-ADAPTIVE_QUESTION_COUNT = 5
+ADAPTIVE_QUESTION_COUNT = MAX_ADAPTIVE_QUESTIONS
 
 
 def _assessment_start_options(assessment_type: str) -> dict:
@@ -145,24 +149,123 @@ def _start_diagnostic(learner: dict) -> None:
     _start_assessment(learner, "diagnostic")
 
 
+
+def _submit_adaptive_current_answer(
+    assessment: dict,
+    question: dict,
+    selected_option: str | None,
+) -> None:
+    """Grade one adaptive answer and request the next question."""
+
+    if selected_option is None:
+        st.warning("Please select an answer before continuing.")
+        return
+
+    assessment_id = assessment["assessment_id"]
+    item_id = question["item_id"]
+
+    try:
+        answer = _get_answer_letter(selected_option)
+
+        with st.spinner("Checking your answer and adapting the next question..."):
+            result = submit_adaptive_answer(
+                user_id=st.session_state[
+                    "edupath_authenticated_user_id"
+                ],
+                assessment_id=assessment_id,
+                item_id=item_id,
+                answer=answer,
+            )
+
+        if result.get("status") == "in_progress":
+            next_question = result.get("next_question")
+
+            if not isinstance(next_question, dict):
+                raise RuntimeError(
+                    "The assessment service did not return the next question."
+                )
+
+            updated_assessment = dict(assessment)
+            updated_assessment["questions"] = [next_question]
+            updated_assessment["total_questions"] = result.get(
+                "total_questions",
+                ADAPTIVE_QUESTION_COUNT,
+            )
+            updated_assessment["answered_questions"] = result[
+                "answered_questions"
+            ]
+            updated_assessment["last_answer_feedback"] = result.get(
+                "last_answer_feedback"
+            )
+
+            st.session_state["edupath_active_assessment"] = (
+                updated_assessment
+            )
+            st.session_state["edupath_current_question"] = 0
+
+        elif result.get("status") == "submitted":
+            st.session_state["edupath_assessment_result"] = result
+            st.session_state.pop("edupath_active_assessment", None)
+
+        else:
+            raise RuntimeError(
+                "The assessment service returned an unexpected status."
+            )
+
+        st.rerun(scope="fragment")
+
+    except (ValueError, PermissionError) as error:
+        st.error(str(error))
+
+    except (RuntimeError, psycopg.Error):
+        st.error(
+            "We couldn't submit your answer. "
+            "Please check your connection and try again."
+        )
+
+
 def _render_question(assessment: dict) -> None:
-    """Display one question and its four options."""
+    """Display an assessment question and its four options."""
 
     questions = assessment["questions"]
-    total_questions = len(questions)
 
-    if total_questions == 0:
+    if not questions:
         st.error("This assessment contains no questions.")
         return
 
-    current_index = st.session_state.get(
-        "edupath_current_question", 0
-    )
+    assessment_type = assessment["assessment_type"]
+    is_adaptive = assessment_type in {"practice", "revision"}
 
-    current_index = max(
-        0,
-        min(current_index, total_questions - 1),
-    )
+    # Adaptive sessions load only their current question.
+    # Diagnostic sessions retain their complete question list.
+    if is_adaptive:
+        total_questions = assessment.get(
+            "total_questions",
+            ADAPTIVE_QUESTION_COUNT,
+        )
+        answered_count = assessment.get("answered_questions", 0)
+        current_index = 0
+        question_number = answered_count + 1
+    else:
+        total_questions = len(questions)
+        answered_count = len(
+            st.session_state.get(
+                _answer_state_key(assessment["assessment_id"]),
+                {},
+            )
+        )
+        current_index = st.session_state.get(
+            "edupath_current_question", 0
+        )
+        current_index = max(
+            0,
+            min(current_index, total_questions - 1),
+        )
+        question_number = current_index + 1
+
+    if total_questions <= 0:
+        st.error("This assessment contains no questions.")
+        return
 
     question = questions[current_index]
 
@@ -170,28 +273,39 @@ def _render_question(assessment: dict) -> None:
     item_id = question["item_id"]
 
     state_key = _answer_state_key(assessment_id)
-
     saved_answers = st.session_state.setdefault(state_key, {})
 
     widget_key = f"edupath_option_{assessment_id}_{item_id}"
-
     saved_option = saved_answers.get(item_id)
 
     # Restore a previously selected option when revisiting a question.
     if widget_key not in st.session_state and saved_option is not None:
         st.session_state[widget_key] = saved_option
 
-    # Identify the selected assessment mode.
     st.caption(
-        f"{_assessment_mode_label(assessment['assessment_type'])} | "
+        f"{_assessment_mode_label(assessment_type)} | "
         f"{total_questions} questions"
     )
 
-    # Question progress.
     st.progress(
-        (current_index + 1) / total_questions,
-        text=f"Question {current_index + 1} of {total_questions}",
+        min(question_number / total_questions, 1.0),
+        text=f"Question {question_number} of {total_questions}",
     )
+
+    # Show feedback from the previously submitted adaptive question.
+    if is_adaptive:
+        previous_feedback = assessment.get("last_answer_feedback")
+
+        if isinstance(previous_feedback, dict):
+            if previous_feedback.get("is_correct"):
+                st.success("Your previous answer was correct!")
+            else:
+                st.warning("Your previous answer was incorrect.")
+
+            explanation = previous_feedback.get("explanation")
+
+            if explanation:
+                st.info(f"**Explanation:** {explanation}")
 
     st.caption(
         f"Topic: {question['topic']['name']} | "
@@ -206,7 +320,6 @@ def _render_question(assessment: dict) -> None:
         st.error("This question has an invalid option format.")
         return
 
-    # Display learner-safe options. No answer keys are exposed.
     st.radio(
         "Choose one answer:",
         options=options,
@@ -216,6 +329,30 @@ def _render_question(assessment: dict) -> None:
         args=(assessment_id, item_id, widget_key),
     )
 
+    if is_adaptive:
+        st.caption(
+            f"Answered: {answered_count} / {total_questions}"
+        )
+
+        st.divider()
+
+        if st.button(
+            "Submit answer",
+            type="primary",
+            use_container_width=True,
+            key=f"edupath_submit_adaptive_{assessment_id}_{item_id}",
+        ):
+            selected_option = st.session_state.get(widget_key)
+
+            _submit_adaptive_current_answer(
+                assessment,
+                question,
+                selected_option,
+            )
+
+        return
+
+    # Diagnostic navigation and batch submission remain unchanged.
     st.caption(
         f"Answered: {len(saved_answers)} / {total_questions}"
     )
@@ -226,7 +363,7 @@ def _render_question(assessment: dict) -> None:
 
     with previous_col:
         st.button(
-            "← Previous",
+            "Previous",
             disabled=current_index == 0,
             use_container_width=True,
             on_click=_change_question,
@@ -235,7 +372,7 @@ def _render_question(assessment: dict) -> None:
 
     with next_col:
         st.button(
-            "Next →",
+            "Next",
             disabled=current_index == total_questions - 1,
             use_container_width=True,
             on_click=_change_question,
@@ -243,7 +380,6 @@ def _render_question(assessment: dict) -> None:
         )
 
     if current_index == total_questions - 1:
-
         st.info(
             "You have reached the final question. "
             "Review your answers before submitting."
@@ -255,7 +391,6 @@ def _render_question(assessment: dict) -> None:
             use_container_width=True,
         ):
             _submit_current_assessment(assessment)
-
 
 def _submit_current_assessment(assessment: dict) -> None:
     """Convert selected options into letters and submit the assessment."""

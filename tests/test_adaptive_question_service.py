@@ -1,4 +1,4 @@
-﻿from services.adaptive_question_service import select_adaptive_questions
+from services.adaptive_question_service import select_adaptive_questions
 
 
 def make_questions(topic_slug, sequence_order=1):
@@ -249,3 +249,201 @@ def test_postgres_uuid_question_ids_are_supported():
 
     assert len(selected) == 1
     assert selected[0]["question_id"] == question_id
+
+class TestDynamicDifficulty:
+
+    def test_correct_easy_answer_increases_to_medium(self):
+        from services.adaptive_question_service import adjust_next_difficulty
+
+        assert adjust_next_difficulty("easy", True) == "medium"
+
+    def test_correct_medium_answer_increases_to_hard(self):
+        from services.adaptive_question_service import adjust_next_difficulty
+
+        assert adjust_next_difficulty("medium", True) == "hard"
+
+    def test_correct_hard_answer_stays_hard(self):
+        from services.adaptive_question_service import adjust_next_difficulty
+
+        assert adjust_next_difficulty("hard", True) == "hard"
+
+    def test_incorrect_hard_answer_decreases_to_medium(self):
+        from services.adaptive_question_service import adjust_next_difficulty
+
+        assert adjust_next_difficulty("hard", False) == "medium"
+
+    def test_incorrect_medium_answer_decreases_to_easy(self):
+        from services.adaptive_question_service import adjust_next_difficulty
+
+        assert adjust_next_difficulty("medium", False) == "easy"
+
+    def test_incorrect_easy_answer_stays_easy(self):
+        from services.adaptive_question_service import adjust_next_difficulty
+
+        assert adjust_next_difficulty("easy", False) == "easy"
+
+    def test_invalid_current_difficulty_is_rejected(self):
+        from services.adaptive_question_service import adjust_next_difficulty
+
+        try:
+            adjust_next_difficulty("expert", True)
+        except ValueError:
+            return
+
+        raise AssertionError("Invalid difficulty was accepted.")
+
+    def test_invalid_correctness_value_is_rejected(self):
+        from services.adaptive_question_service import adjust_next_difficulty
+
+        try:
+            adjust_next_difficulty("easy", "yes")
+        except ValueError:
+            return
+
+        raise AssertionError("Non-boolean correctness was accepted.")
+
+
+class TestDynamicQuestionSelection:
+
+    def test_correct_answer_prefers_harder_question_in_same_topic(self):
+        from services.adaptive_question_service import (
+            select_next_adaptive_question,
+        )
+
+        questions = [
+            {
+                "question_id": "variables-medium",
+                "question_code": "VAR-M",
+                "topic_slug": "variables",
+                "difficulty": "medium",
+            },
+            {
+                "question_id": "loops-easy",
+                "question_code": "LOOP-E",
+                "topic_slug": "loops",
+                "difficulty": "easy",
+            },
+        ]
+
+        selected = select_next_adaptive_question(
+            questions=questions,
+            topic_progress=[
+                make_progress("variables", "developing"),
+                make_progress("loops", "not_assessed", 2),
+            ],
+            used_question_ids={"variables-easy"},
+            recently_attempted_question_ids=set(),
+            last_topic_slug="variables",
+            last_difficulty="easy",
+            last_answer_correct=True,
+        )
+
+        assert selected["question_id"] == "variables-medium"
+
+    def test_incorrect_answer_prefers_easier_question_in_same_topic(self):
+        from services.adaptive_question_service import (
+            select_next_adaptive_question,
+        )
+
+        questions = [
+            {
+                "question_id": "variables-easy",
+                "question_code": "VAR-E",
+                "topic_slug": "variables",
+                "difficulty": "easy",
+            },
+            {
+                "question_id": "variables-hard",
+                "question_code": "VAR-H",
+                "topic_slug": "variables",
+                "difficulty": "hard",
+            },
+        ]
+
+        selected = select_next_adaptive_question(
+            questions=questions,
+            topic_progress=[
+                make_progress("variables", "developing"),
+            ],
+            used_question_ids={"variables-medium"},
+            recently_attempted_question_ids=set(),
+            last_topic_slug="variables",
+            last_difficulty="hard",
+            last_answer_correct=False,
+        )
+
+        assert selected["question_id"] == "variables-easy"
+
+    def test_used_questions_are_never_selected_again(self):
+        from services.adaptive_question_service import (
+            select_next_adaptive_question,
+        )
+
+        questions = make_questions("variables")
+
+        selected = select_next_adaptive_question(
+            questions=questions,
+            topic_progress=[
+                make_progress("variables", "developing"),
+            ],
+            used_question_ids={
+                "variables-easy",
+                "variables-medium",
+            },
+            recently_attempted_question_ids=set(),
+            last_topic_slug="variables",
+            last_difficulty="medium",
+            last_answer_correct=True,
+        )
+
+        assert selected["question_id"] not in {
+            "variables-easy",
+            "variables-medium",
+        }
+
+    def test_falls_back_to_another_topic_when_preferred_topic_is_exhausted(self):
+        from services.adaptive_question_service import (
+            select_next_adaptive_question,
+        )
+
+        questions = make_questions("loops", sequence_order=2)
+
+        selected = select_next_adaptive_question(
+            questions=questions,
+            topic_progress=[
+                make_progress("variables", "needs_revision", 1),
+                make_progress("loops", "developing", 2),
+            ],
+            used_question_ids=set(),
+            recently_attempted_question_ids=set(),
+            last_topic_slug="variables",
+            last_difficulty="medium",
+            last_answer_correct=True,
+        )
+
+        assert selected["topic_slug"] == "loops"
+
+    def test_returns_none_when_no_unused_questions_remain(self):
+        from services.adaptive_question_service import (
+            select_next_adaptive_question,
+        )
+
+        questions = make_questions("variables")
+
+        selected = select_next_adaptive_question(
+            questions=questions,
+            topic_progress=[
+                make_progress("variables", "needs_revision"),
+            ],
+            used_question_ids={
+                "variables-easy",
+                "variables-medium",
+                "variables-hard",
+            },
+            recently_attempted_question_ids=set(),
+            last_topic_slug="variables",
+            last_difficulty="easy",
+            last_answer_correct=True,
+        )
+
+        assert selected is None

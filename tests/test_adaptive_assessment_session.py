@@ -68,7 +68,7 @@ class AdaptiveAssessmentSessionTests(unittest.TestCase):
             *[(item_id,) for item_id in self.item_ids],
         ]
 
-    def call_service(self, assessment_type, question_count=2):
+    def call_service(self, assessment_type, question_count=5):
         with (
             patch(
                 "services.assessment_session_service.psycopg.connect",
@@ -99,25 +99,25 @@ class AdaptiveAssessmentSessionTests(unittest.TestCase):
             [],
         ]
 
-        result = self.call_service("practice", question_count=2)
+        result = self.call_service("practice", question_count=5)
 
         self.assertEqual(result["assessment_type"], "practice")
-        self.assertEqual(result["total_questions"], 2)
-        self.assertEqual(len(result["questions"]), 2)
+        self.assertEqual(result["total_questions"], 5)
+        self.assertEqual(len(result["questions"]), 1)
 
         selected_topics = {
             question["topic"]["slug"]
             for question in result["questions"]
         }
 
-        self.assertEqual(selected_topics, {"variables", "loops"})
+        self.assertEqual(selected_topics, {"variables"})
 
         selected_difficulties = {
             question["difficulty"]
             for question in result["questions"]
         }
 
-        self.assertEqual(selected_difficulties, {"easy", "medium"})
+        self.assertEqual(selected_difficulties, {"easy"})
 
         self.assertEqual(self.cursor.fetchall.call_count, 2)
 
@@ -143,16 +143,17 @@ class AdaptiveAssessmentSessionTests(unittest.TestCase):
             [],
         ]
 
-        result = self.call_service("revision", question_count=2)
+        result = self.call_service("revision", question_count=5)
 
         self.assertEqual(result["assessment_type"], "revision")
-        self.assertEqual(result["total_questions"], 2)
+        self.assertEqual(result["total_questions"], 5)
+        self.assertEqual(len(result["questions"]), 1)
         self.assertEqual(
             {
                 question["difficulty"]
                 for question in result["questions"]
             },
-            {"easy", "medium"},
+            {"easy"},
         )
 
     def test_diagnostic_session_keeps_original_selection_behavior(self):
