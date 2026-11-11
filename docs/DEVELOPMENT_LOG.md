@@ -718,3 +718,32 @@ Date: 2026-11-11
 - Added regression coverage for aggregate tuple mapping, threshold conditions,
   and UI display of the stale/long-running category.
 - No migration or dependency is required. Local verification is pending.
+
+
+## Reliability refinement: authenticated Tutor request rate limit
+
+Date: 2026-11-11
+
+### Completed
+- Added a rolling per-account limit of 20 learner questions per 10 minutes.
+- Enforced the limit in `save_chat_message()` before inserting a learner
+  question, so non-UI callers cannot bypass the application-layer guard.
+- Locked the active learner row inside the same PostgreSQL transaction as
+  the count check and message insert. Concurrent submissions for one account
+  serialize through that row lock and cannot all pass the same stale count.
+- Counted user-role messages across the learner's conversations. Assistant
+  responses and feedback submissions do not consume the question allowance.
+- Added a dedicated `ChatRateLimitError` with a retry-after value and a
+  user-friendly Streamlit warning. A blocked submission does not invoke the
+  tutor graph/model.
+- Added service tests for successful inserts, limit enforcement, retry timing,
+  inactive accounts, and ownership checks, plus a UI test that verifies a
+  limited request does not call the model.
+- No migration, dependency, or external rate-limiting service is required.
+
+### Verification status
+- Local focused and full-suite verification is pending after the developer
+  pulls this milestone. The previous user-verified baseline was 518 passed,
+  77 subtests passed on November 11, 2026.
+- The nine sample learning resources remain unuploaded. Final RAG ingestion
+  and live retrieval evaluation remain deferred to the final integration phase.
