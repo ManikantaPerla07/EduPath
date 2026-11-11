@@ -213,9 +213,9 @@ p, li, label, [data-testid="stMarkdownContainer"] {
 .edupath-eyebrow {
     margin-bottom: 0.42rem;
     color: var(--edupath-primary);
-    font-size: 0.70rem;
+    font-size: 0.75rem;
     font-weight: 800;
-    letter-spacing: 0.13em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
 }
 
@@ -352,7 +352,7 @@ p, li, label, [data-testid="stMarkdownContainer"] {
 }
 
 [data-testid="stMetricLabel"] {
-    color: #68758b;
+    color: #586780;
     font-size: 0.80rem;
     font-weight: 650;
 }
