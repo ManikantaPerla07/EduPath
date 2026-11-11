@@ -612,3 +612,22 @@ Date: 2026-11-11
 - Automated feedback tests have been added but have not yet been run in the local environment.
 - Apply migration 005 by running the existing migration runner after pulling this commit.
 - The nine sample learning resources remain unuploaded; final RAG corpus ingestion and live retrieval validation remain deferred to the final integration phase.
+
+## Milestone: Administrator AI Tutor Feedback Insights
+
+Date: 2026-11-11
+
+### Completed
+- Added an admin-only feedback analytics service for the published Python course's saved assistant-answer ratings.
+- Added active-administrator authorization checks directly in PostgreSQL before reading metrics.
+- Added overall assistant-answer count, rated-answer count, helpful and not-helpful totals, rating coverage, and helpful-rating share.
+- Added a 14-day daily aggregate trend, including days with no ratings.
+- Kept the report privacy-preserving: no learner IDs, message contents, or individual feedback rows are returned to the UI.
+- Added an administrator-only AI Tutor Feedback navigation page.
+- Added service and UI tests for authorization, empty feedback, aggregation, trend rendering, and input validation.
+- Updated README feature and repository-structure documentation.
+
+### Verification status
+- Tests for this milestone have been added but have not yet been run in the local environment.
+- The latest user-verified full-suite result before this milestone was 469 passed and 53 subtests passed.
+- The nine sample learning resources remain unuploaded; final RAG corpus ingestion and live retrieval validation remain deferred to the final integration phase.
