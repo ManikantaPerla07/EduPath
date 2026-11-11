@@ -575,6 +575,12 @@ Date: 2026-11-05
   Basic Problem Solving. The existing Variables and Data Types note remains.
 - Added `sample_documents/README.md` with the nine-topic mapping and manual
   upload instructions. Sample files are not automatically inserted into Neon.
+- Added `tests/test_sample_learning_resources.py` to verify that every
+  curriculum topic maps to a Markdown file with Python examples, practice
+  questions, and key points.
+- A repository content audit confirmed all nine files and their upload-guide
+  mappings satisfy those structural checks. This is a documentation structure
+  check, not a factual or pedagogical review.
 - Updated README to describe the topic-specific publishing requirement and
   sample resource library.
 - No new database migration or dependency is required for topic coverage.
