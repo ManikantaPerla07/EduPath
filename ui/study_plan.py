@@ -238,7 +238,7 @@ def _display_plan(plan, user_id):
                 if st.button(
                     button_label,
                     key=button_key,
-                    use_container_width=False,
+                    width="content",
                 ):
                     _handle_activity_update(
                         user_id=user_id,
