@@ -334,6 +334,7 @@ def fetch_learner_topic_progress(
 
         WHERE u.user_id = %s
           AND u.is_active = TRUE
+          AND c.is_published = TRUE
 
         ORDER BY t.sequence_number;
     """
