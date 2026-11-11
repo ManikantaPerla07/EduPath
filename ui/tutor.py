@@ -428,6 +428,7 @@ def _process_question(
                 limit=5,
                 conversation_history=conversation_history,
                 user_id=user_id,
+                session_id=session_id,
             )
 
         answer = result["answer"]
