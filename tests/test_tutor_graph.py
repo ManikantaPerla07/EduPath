@@ -3,10 +3,21 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from agents.tutor_graph import run_tutor_graph
+from agents.tutor_graph import build_tutor_graph, run_tutor_graph
 
 
 class TestTutorGraph(unittest.TestCase):
+
+    @patch("agents.tutor_graph.StateGraph")
+    def test_builds_graph_with_supplied_checkpointer(self, mock_state_graph):
+        graph = MagicMock()
+        mock_state_graph.return_value = graph
+        checkpointer = object()
+
+        result = build_tutor_graph(checkpointer=checkpointer)
+
+        self.assertIs(result, graph.compile.return_value)
+        graph.compile.assert_called_once_with(checkpointer=checkpointer)
 
     def test_generates_answer_when_retrieval_finds_sources(self):
         chunks = [
