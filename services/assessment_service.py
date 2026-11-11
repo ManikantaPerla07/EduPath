@@ -47,6 +47,7 @@ def fetch_question_records(
 
     conditions = [
         "c.course_slug = %s",
+        "c.is_published = TRUE",
         "qb.is_active = TRUE",
     ]
     parameters = [course_slug]
