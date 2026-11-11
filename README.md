@@ -12,7 +12,7 @@ EduPath is an AI-powered learning platform for beginner Python programming. It c
 - **Learning progress:** tracks attempts, accuracy, and topic mastery status.
 - **Personalized study plan:** schedules learning, practice, revision, and spaced-review activities based on assessment evidence, prerequisites, learning goals, and available study time.
 - **Persistent conversations and plans:** stores learner chat history, study-plan activity status, and per-chat LangGraph checkpoints in Neon. Deleting a conversation also deletes its checkpoint state.
-- **Administrator Knowledge Management:** active administrators can upload PDF, TXT and Markdown resources, associate them with course topics, inspect extraction/chunk/embedding status, retry failed extraction, and generate missing embeddings. Administrative operations re-check the account role in PostgreSQL.
+- **Administrator Knowledge Management:** active administrators can upload PDF, TXT and Markdown resources, associate them with course topics, inspect extraction/chunk/embedding status, retry failed extraction, generate missing embeddings, and review topic-by-topic coverage. Publishing requires every course topic to have at least one non-archived, ready, topic-specific resource with all chunk embeddings stored.
 
 ## Technology stack
 
@@ -69,7 +69,7 @@ EduPath/
 ├── docs/
 │   └── DEVELOPMENT_LOG.md  # Implementation milestones and decisions
 ├── rag/                    # Retrieval-related modules
-├── sample_documents/       # Sample Python learning material
+├── sample_documents/       # Nine topic-aligned Python learning resources and upload guide
 ├── services/
 │   ├── langchain_document_processing.py # Page-aware LangChain loader/splitter
 │   ├── langchain_embeddings.py          # Gemini Embedding 2 adapter
@@ -205,7 +205,7 @@ Sign out and sign in again. The Knowledge Management page and its document opera
 
 Open **Knowledge Management** as an administrator. Upload approved resources for the Python Programming course, associate them with the relevant topics, and use **Generate missing embeddings** until each resource intended for retrieval is fully embedded.
 
-The publication control checks that the course has at least one topic, at least one active assessment question, and at least one active ready resource with all of its chunk embeddings stored. This is a minimum technical readiness check, not a guarantee of complete topic coverage; review the inventory and ensure every taught topic has adequate approved material before publishing.
+The publication control checks that every Python topic has at least one non-archived, ready, topic-specific resource with every chunk embedded, alongside active assessment questions. Course-wide resources are visible in the inventory but do not substitute for topic-specific coverage. The repository includes nine original sample notes under `sample_documents/`, mapped in `sample_documents/README.md`. These files are not automatically imported: upload each through Knowledge Management, generate its embeddings, and confirm the topic is covered. This is a technical coverage check, not an automatic assessment of factual quality or teaching depth; review the material before publishing.
 
 Publishing enables learner access to the course. Unpublishing pauses learner access to the course's dashboard, assessments, progress, study plan, and tutor retrieval. Existing assessment submissions can still be completed. Archiving a resource preserves its file and chunks but excludes it from retrieval. If the last fully embedded active resource is archived, EduPath automatically unpublishes the course. Restoring a resource does not automatically republish the course.
 
