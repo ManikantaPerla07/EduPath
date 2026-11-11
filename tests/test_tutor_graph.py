@@ -459,6 +459,13 @@ class TestTutorGraph(unittest.TestCase):
                 "agents.tutor_graph.build_tutor_graph",
                 return_value=graph,
             ) as build_graph,
+            patch(
+                "agents.tutor_graph.start_agent_run",
+                return_value="run-123",
+            ) as start_run,
+            patch(
+                "agents.tutor_graph.finish_agent_run",
+            ) as finish_run,
         ):
             result = run_tutor_graph(
                 question="What is a variable?",
@@ -471,6 +478,15 @@ class TestTutorGraph(unittest.TestCase):
         get_session.assert_called_once_with(
             user_id=user_id,
             session_id=session_id,
+        )
+        start_run.assert_called_once_with(
+            user_id=user_id,
+            session_id=session_id,
+        )
+        finish_run.assert_called_once()
+        self.assertEqual(
+            finish_run.call_args.kwargs["status"],
+            "completed",
         )
         open_checkpointer.assert_called_once_with()
         build_graph.assert_called_once_with(
@@ -490,6 +506,57 @@ class TestTutorGraph(unittest.TestCase):
             },
             config={"configurable": {"thread_id": thread_id}},
         )
+
+    @patch("agents.tutor_graph.get_chat_session")
+    @patch("agents.tutor_graph.start_agent_run", return_value="run-123")
+    @patch("agents.tutor_graph.finish_agent_run")
+    @patch("agents.tutor_graph.open_langgraph_checkpointer")
+    @patch("agents.tutor_graph.build_tutor_graph")
+    def test_failed_persistent_graph_run_is_recorded_and_reraised(
+        self,
+        build_graph,
+        open_checkpointer,
+        finish_run,
+        start_run,
+        get_session,
+    ):
+        user_id = "123e4567-e89b-12d3-a456-426614174000"
+        session_id = "11111111-1111-4111-8111-111111111111"
+        thread_id = "22222222-2222-4222-8222-222222222222"
+
+        get_session.return_value = {"thread_id": thread_id}
+
+        checkpointer_context = MagicMock()
+        checkpointer_context.__enter__.return_value = object()
+        checkpointer_context.__exit__.return_value = False
+        open_checkpointer.return_value = checkpointer_context
+
+        graph = MagicMock()
+        graph.invoke.side_effect = RuntimeError("Private exception detail")
+        build_graph.return_value = graph
+
+        with self.assertRaisesRegex(RuntimeError, "Private exception detail"):
+            run_tutor_graph(
+                question="What is a variable?",
+                course_slug="python-basics",
+                user_id=user_id,
+                session_id=session_id,
+            )
+
+        finish_run.assert_called_once()
+        self.assertEqual(
+            finish_run.call_args.kwargs["status"],
+            "failed",
+        )
+        self.assertEqual(
+            finish_run.call_args.kwargs["error_code"],
+            "RuntimeError",
+        )
+        self.assertNotIn(
+            "Private exception detail",
+            str(finish_run.call_args.kwargs),
+        )
+
 
     @patch("agents.tutor_graph.get_chat_session")
     def test_persistent_session_requires_authenticated_user_id(
