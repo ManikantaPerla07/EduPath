@@ -249,6 +249,43 @@ class FailedDocumentRetryTests(unittest.TestCase):
         )
         self.assertEqual(second_cursor.executemany.call_count, 1)
 
+    def test_failed_reprocessing_preserves_failed_status(self):
+        from services.document_service import DocumentIngestionError
+
+        first_cursor = make_cursor()
+        first_cursor.fetchone.side_effect = [
+            ("admin",),
+            ("python.txt", "txt", b"bad stored text", "Notes", "failed"),
+        ]
+        first_connection = make_connection(first_cursor)
+
+        failure_cursor = make_cursor()
+        failure_connection = make_connection(failure_cursor)
+
+        with (
+            patch(
+                "services.document_service.load_database_url",
+                return_value="postgresql://test",
+            ),
+            patch(
+                "services.document_service.process_document",
+                side_effect=ValueError("Invalid stored document"),
+            ),
+            patch(
+                "services.document_service.psycopg.connect",
+                side_effect=[first_connection, failure_connection],
+            ),
+        ):
+            with self.assertRaises(DocumentIngestionError):
+                retry_document_processing(
+                    ADMIN_ID,
+                    str(DOCUMENT_ID),
+                )
+
+        failure_sql = failure_cursor.execute.call_args.args[0]
+        self.assertIn("processing_status = 'failed'", failure_sql)
+        self.assertIn("ValueError", failure_cursor.execute.call_args.args[1][0])
+
     def test_rejects_non_failed_document(self):
         cursor = make_cursor()
         cursor.fetchone.side_effect = [
