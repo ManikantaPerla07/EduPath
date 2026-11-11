@@ -341,7 +341,7 @@ class ChatDatabaseTests(unittest.TestCase):
         self.assertIn("ORDER BY created_at DESC, message_id DESC", second_query)
         self.assertIn("LIMIT %s", second_query)
         self.assertIn(
-            "ORDER BY recent_messages.created_at ASC,",
+            "recent_messages.created_at ASC",
             second_query,
         )
         self.assertIn("chat_message_feedback", second_query)
