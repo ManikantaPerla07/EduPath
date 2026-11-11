@@ -34,6 +34,11 @@ EXPECTED_TABLES = {
     "model_usage_events",
 }
 
+EXPECTED_INDEXES = {
+    "idx_chat_messages_user_created_at",
+    "idx_agent_runs_active_session",
+}
+
 
 def load_database_url():
     """Load the Neon connection string."""
@@ -220,6 +225,28 @@ def verify_database(connection):
         if not unique_constraint_exists:
             raise RuntimeError(
                 "Question code unique constraint is missing."
+            )
+
+        cursor.execute(
+            """
+            SELECT indexname
+            FROM pg_indexes
+            WHERE schemaname = 'public'
+              AND indexname = ANY(%s)
+            ORDER BY indexname;
+            """,
+            (sorted(EXPECTED_INDEXES),)
+        )
+
+        existing_indexes = {
+            row[0] for row in cursor.fetchall()
+        }
+
+        missing_indexes = EXPECTED_INDEXES - existing_indexes
+
+        if missing_indexes:
+            raise RuntimeError(
+                f"Missing performance indexes: {sorted(missing_indexes)}"
             )
 
     return len(existing_tables)
