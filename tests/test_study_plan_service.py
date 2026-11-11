@@ -520,10 +520,9 @@ class StudyPlanDatabaseTests(unittest.TestCase):
             "revision",
         )
         self.assertEqual(cursor.execute.call_count, 2)
-        self.assertIn(
-            "c.is_published = TRUE",
-            cursor.execute.call_args_list[0].args[0],
-        )
+        fetch_query = cursor.execute.call_args_list[0].args[0]
+        self.assertIn("c.is_published = TRUE", fetch_query)
+        self.assertIn("u.role = 'admin'", fetch_query)
 
     def test_fetch_returns_none_when_no_active_plan_exists(self):
         connection, cursor = self._mock_database()
