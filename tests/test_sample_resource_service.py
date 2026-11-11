@@ -132,6 +132,13 @@ class SampleResourceImportTests(unittest.TestCase):
         list_documents.return_value = [
             self._existing_document(item, archived_at="archived")
         ]
+        ingest.side_effect = lambda **kwargs: {
+            "document_id": f"new-{kwargs['topic_slug']}",
+            "file_name": kwargs["file_name"],
+            "topic_slug": kwargs["topic_slug"],
+            "chunk_count": 2,
+            "processing_status": "ready",
+        }
 
         with patch(
             "services.sample_resource_service.SAMPLE_DOCUMENTS_DIR",
@@ -162,6 +169,13 @@ class SampleResourceImportTests(unittest.TestCase):
         existing = self._existing_document(item)
         existing["topic_slug"] = "operators"
         list_documents.return_value = [existing]
+        ingest.side_effect = lambda **kwargs: {
+            "document_id": f"new-{kwargs['topic_slug']}",
+            "file_name": kwargs["file_name"],
+            "topic_slug": kwargs["topic_slug"],
+            "chunk_count": 2,
+            "processing_status": "ready",
+        }
 
         with patch(
             "services.sample_resource_service.SAMPLE_DOCUMENTS_DIR",
