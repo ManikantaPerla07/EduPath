@@ -341,7 +341,7 @@ def _render_question(assessment: dict) -> None:
         if st.button(
             "Submit answer",
             type="primary",
-            use_container_width=True,
+            width="stretch",
             key=f"edupath_submit_adaptive_{assessment_id}_{item_id}",
         ):
             selected_option = st.session_state.get(widget_key)
@@ -367,7 +367,7 @@ def _render_question(assessment: dict) -> None:
         st.button(
             "Previous",
             disabled=current_index == 0,
-            use_container_width=True,
+            width="stretch",
             on_click=_change_question,
             args=(-1,),
         )
@@ -376,7 +376,7 @@ def _render_question(assessment: dict) -> None:
         st.button(
             "Next",
             disabled=current_index == total_questions - 1,
-            use_container_width=True,
+            width="stretch",
             on_click=_change_question,
             args=(1,),
         )
@@ -390,7 +390,7 @@ def _render_question(assessment: dict) -> None:
         if st.button(
             "Submit assessment",
             type="primary",
-            use_container_width=True,
+            width="stretch",
         ):
             _submit_current_assessment(assessment)
 
@@ -520,7 +520,7 @@ def _render_results(result: dict) -> None:
     if st.button(
         "Start another assessment",
         type="primary",
-        use_container_width=True,
+        width="stretch",
     ):
         st.session_state.pop("edupath_assessment_result", None)
         st.session_state.pop("edupath_active_assessment", None)
@@ -572,7 +572,7 @@ def render_assessment(learner: dict) -> None:
 
         if st.button(
             "Start diagnostic",
-            use_container_width=True,
+            width="stretch",
             type="primary",
             key="edupath_start_diagnostic",
         ):
@@ -589,7 +589,7 @@ def render_assessment(learner: dict) -> None:
 
         if st.button(
             "Start practice",
-            use_container_width=True,
+            width="stretch",
             key="edupath_start_practice",
         ):
             _start_assessment(learner, "practice")
@@ -605,7 +605,7 @@ def render_assessment(learner: dict) -> None:
 
         if st.button(
             "Start revision",
-            use_container_width=True,
+            width="stretch",
             key="edupath_start_revision",
         ):
             _start_assessment(learner, "revision")
