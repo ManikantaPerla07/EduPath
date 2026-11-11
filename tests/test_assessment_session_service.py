@@ -72,6 +72,9 @@ class TestAssessmentSessionService(unittest.TestCase):
                 )
 
         mock_fetch.assert_called_once()
+        learner_access_sql = cursor.execute.call_args_list[0].args[0]
+        self.assertIn("is_active = TRUE", learner_access_sql)
+        self.assertIn("FOR SHARE", learner_access_sql)
 
     @patch("services.assessment_session_service.fetch_question_records")
     def test_unpublished_course_is_rejected_before_question_selection(
@@ -114,6 +117,8 @@ class TestAssessmentSessionService(unittest.TestCase):
 
         fetch_questions.assert_not_called()
         self.assertEqual(cursor.execute.call_count, 2)
+        learner_access_sql = cursor.execute.call_args_list[0].args[0]
+        self.assertIn("FOR SHARE", learner_access_sql)
 
     def test_nonexistent_learner_is_rejected(self):
         # Use a random UUID. No fake learner account is inserted.
