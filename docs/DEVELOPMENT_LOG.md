@@ -650,3 +650,23 @@ Date: 2026-11-11
 - The live evaluator has intentionally not been executed. It requires all nine approved resources to be uploaded, embedded, reviewed, and the Python course published. It makes one Gemini query-embedding request per golden query and performs read-only pgvector searches.
 - This benchmark measures expected-topic retrieval alignment only. It does not establish factual correctness, answer faithfulness, citation correctness, or teaching quality.
 - The latest user-verified full-suite baseline before this milestone was 479 passed and 58 subtests passed on November 11, 2026.
+
+## Milestone: Authenticated AI Tutor Run Telemetry
+
+Date: 2026-11-11
+
+### Completed
+- Added a telemetry service that creates and completes records in the existing `agent_runs` table.
+- Persistent Tutor runs are associated with the authenticated user and the owned chat session.
+- Successful runs store completion status and elapsed time; failed runs store status, elapsed time, and a validated exception-class code.
+- Telemetry writes are best-effort. A telemetry database failure does not prevent a Tutor response or replace the original graph exception.
+- Kept run telemetry content-free: no prompts, generated answers, retrieved excerpts, or learner profile data are written to the run record.
+- Added tests for validation, active-user/session ownership, status transitions, error-code minimization, and resilience when telemetry writes fail.
+- Updated README with the new observability behavior.
+
+### Scope and verification
+- This milestone currently records authenticated persistent chat-run lifecycle only. It does not yet populate `model_usage_events`; provider token usage is not consistently available from both direct Gemini and LangChain paths, so token counts will not be fabricated as zero-valued measurements.
+- Per-node execution traces and a UI dashboard for run metrics are not included in this first pass.
+- Tests have been added but have not yet been run in the local environment.
+- The latest user-verified full-suite baseline before this milestone was 492 passed and 68 subtests passed on November 11, 2026.
+- The nine sample learning resources remain unuploaded; final RAG ingestion and live evaluation remain deferred to the final integration phase.
