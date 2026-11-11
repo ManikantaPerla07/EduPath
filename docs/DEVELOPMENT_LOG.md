@@ -467,3 +467,50 @@ Date: 2026-11-05
   pending after pulling this milestone. Live Gemini tool-calling verification
   is also pending; a simple authenticated Gemini 3.5 Flash Lite text request
   previously returned HTTP 200.
+
+## 2026-11-11 — Gemini Router Fallback Verification
+
+- Added shared transient-error classification for HTTP 500, 502, 503 and 504
+  responses and recognized HTTPX/HTTPCore transport interruptions.
+- Added one bounded fallback attempt from Gemini 3.8 Flash to Gemini 3.5
+  Flash Lite for learner-tool routing.
+- Reused the same error classification for direct Google Gen AI and
+  LangChain answer-generation paths.
+- Added regression tests for transport failures, wrapped exceptions,
+  non-retryable client errors, and bounded fallback behavior.
+- Developer verified the focused suite: 60 passed, 9 subtests passed.
+- Developer verified the full suite: 421 passed, 31 subtests passed.
+- Python compilation and `git diff --check` succeeded.
+- Manually verified a successful AI Tutor response to
+  "What is in my study plan?" in Streamlit. The answer displayed the
+  saved completed plan, 9 of 9 completed activities, and 100% completion.
+- The UI identified Gemini 3.8 Flash as the answer-generation model.
+  The live tool-router model was not separately instrumented, so the
+  manual test confirms the successful learner-data answer, not which
+  router model handled that request.
+- No database migration was required.
+
+## 2026-11-11 — Administrator Knowledge Management (Implementation in Progress)
+
+- Added active-administrator checks to course, topic, document inventory,
+  and failed-document retry service operations.
+- Added a document inventory query that reports extraction status,
+  text chunk counts, and embedded chunk counts without returning original
+  file bytes or chunk contents.
+- Added reprocessing for failed PDF, TXT and Markdown documents using the
+  original file bytes already stored in Neon.
+- Chunk replacement and the transition back to ready occur in one
+  PostgreSQL transaction. Failed retries retain a visible failed status.
+- Added the Streamlit Knowledge Management page for administrators:
+  document upload, course/topic association, license and rights metadata,
+  document inventory, embedding generation, and failed extraction retry.
+- Added the Knowledge Management navigation item only for users whose
+  persisted role is administrator. Backend service operations independently
+  enforce administrator authorization.
+- Added service and UI tests for authorization, inventory metadata,
+  embedding status display, and failed-document retry.
+- No database migration or new paid service was required.
+- Local automated test execution and live administrator UI verification
+  are pending after the developer pulls this milestone.
+- Course publication controls, resource deletion/archival, and instructor
+  analytics remain outside this implementation slice.
