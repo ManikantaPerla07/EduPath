@@ -571,14 +571,13 @@ def render_assessment(learner: dict) -> None:
                 "It does not adapt question selection to previous performance."
             )
 
-            st.button(
+            if st.button(
                 "Start diagnostic",
                 width="stretch",
                 type="primary",
                 key="edupath_start_diagnostic",
-                on_click=_start_assessment,
-                args=(learner, "diagnostic"),
-            )
+            ):
+                _start_assessment(learner, "diagnostic")
 
     with practice_col:
         with st.container(border=True, key="edupath_adaptive_practice_card"):
@@ -590,13 +589,12 @@ def render_assessment(learner: dict) -> None:
                 "Five questions selected using topic mastery and recent attempts."
             )
 
-            st.button(
+            if st.button(
                 "Start practice",
                 width="stretch",
                 key="edupath_start_practice",
-                on_click=_start_assessment,
-                args=(learner, "practice"),
-            )
+            ):
+                _start_assessment(learner, "practice")
 
     with revision_col:
         with st.container(border=True, key="edupath_targeted_revision_card"):
@@ -608,10 +606,9 @@ def render_assessment(learner: dict) -> None:
                 "Prioritizes weaker topics and adapts question difficulty."
             )
 
-            st.button(
+            if st.button(
                 "Start revision",
                 width="stretch",
                 key="edupath_start_revision",
-                on_click=_start_assessment,
-                args=(learner, "revision"),
-            )
+            ):
+                _start_assessment(learner, "revision")
