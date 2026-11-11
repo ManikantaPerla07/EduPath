@@ -550,3 +550,38 @@ Date: 2026-11-05
 - Course publication readiness is a minimum technical gate. Administrators
   must still review actual topic coverage and source rights before publication.
 - No external service or paid dependency was added.
+
+## 2026-11-11 — Python Knowledge-Base Topic Coverage
+
+- Extended course publication readiness from a course-wide resource count to
+  topic-specific coverage across the existing Python curriculum.
+- A topic is covered only when it has at least one non-archived, ready,
+  topic-assigned resource and every extracted chunk in that resource has an
+  embedding stored.
+- Course-wide resources remain visible in the inventory and count toward the
+  overall resource count, but do not substitute for topic-specific coverage.
+- Added topic coverage counts, uncovered topic identifiers, resource counts,
+  and embedded-versus-total chunk counts to the administrator publication
+  readiness response.
+- Updated Knowledge Management to show a coverage progress bar and a
+  topic-by-topic list identifying covered topics, incomplete embeddings,
+  and topics still needing resources.
+- Strengthened archive lifecycle protection: archiving a resource now
+  rechecks every topic's coverage. A published course is automatically
+  unpublished if any topic loses its last fully embedded resource, even when
+  a course-wide resource remains.
+- Added eight original Markdown learning notes for Operators, Conditionals,
+  Loops, Functions, Lists and Tuples, Dictionaries and Sets, Strings, and
+  Basic Problem Solving. The existing Variables and Data Types note remains.
+- Added `sample_documents/README.md` with the nine-topic mapping and manual
+  upload instructions. Sample files are not automatically inserted into Neon.
+- Updated README to describe the topic-specific publishing requirement and
+  sample resource library.
+- No new database migration or dependency is required for topic coverage.
+  Migration 004 remains the current schema version.
+- Local automated verification and administrator UI review are pending after
+  the developer pulls this milestone. The previous developer-verified full
+  test suite was 454 passed, 31 subtests passed.
+- Topic coverage is a technical ingestion/completeness measure, not an
+  automated evaluation of factual accuracy or pedagogical quality. The
+  administrator must still review source rights and educational content.
