@@ -162,7 +162,11 @@ def _render_document_inventory(
                     f"edupath_confirm_archive_{document_id}"
                 )
 
-                if action_columns[1].button(
+                if status == "processing":
+                    action_columns[1].caption(
+                        "Archiving is disabled while processing."
+                    )
+                elif action_columns[1].button(
                     "Archive resource",
                     key=f"edupath_archive_document_{document_id}",
                     use_container_width=True,
