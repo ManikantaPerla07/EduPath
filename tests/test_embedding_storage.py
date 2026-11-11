@@ -117,7 +117,7 @@ class EmbeddingStorageTests(unittest.TestCase):
                 ],
             ),
             patch(
-                "services.embedding_service.generate_document_embedding",
+                "services.langchain_embeddings.generate_document_embedding",
                 return_value=vector,
             ) as generate,
         ):
@@ -203,7 +203,7 @@ class EmbeddingStorageTests(unittest.TestCase):
                 ],
             ),
             patch(
-                "services.embedding_service.generate_document_embedding",
+                "services.langchain_embeddings.generate_document_embedding",
                 return_value=[0.01] * 768,
             ),
         ):
@@ -241,7 +241,7 @@ class EmbeddingStorageTests(unittest.TestCase):
                 return_value=fetch_connection,
             ),
             patch(
-                "services.embedding_service.generate_document_embedding",
+                "services.langchain_embeddings.generate_document_embedding",
                 side_effect=EmbeddingServiceError("API failure"),
             ),
         ):
