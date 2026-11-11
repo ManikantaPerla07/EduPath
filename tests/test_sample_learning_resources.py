@@ -1,6 +1,5 @@
 """Editorial consistency checks for the nine Python sample resources."""
 
-import re
 import unittest
 from pathlib import Path
 
