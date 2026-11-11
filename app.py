@@ -9,6 +9,7 @@ from services.learner_service import (
     confirm_adult_status,
 )
 from services.progress_service import fetch_learner_topic_progress
+from services.course_service import is_course_published
 from ui.assessment import render_assessment
 from ui.study_plan import render_study_plan
 from ui.tutor import render_tutor
@@ -487,5 +488,23 @@ learner = load_authenticated_learner()
 if not learner["adult_confirmation"]:
     adult_confirmation_screen(learner)
     st.stop()
+
+if learner.get("role") != "admin":
+    try:
+        course_available = is_course_published("python-basics")
+    except Exception:
+        st.error(
+            "We could not verify course availability. Please try again later."
+        )
+        st.stop()
+
+    if not course_available:
+        st.title("🎓 EduPath")
+        st.info(
+            "Python Programming is currently being prepared by the "
+            "EduPath team. Learner access will be available after the "
+            "course and its approved learning resources are published."
+        )
+        st.stop()
 
 home_screen(learner)
