@@ -1,7 +1,7 @@
 """Tests for EduPath's secure LangGraph PostgreSQL checkpoint service."""
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 from uuid import UUID
 
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
@@ -39,11 +39,11 @@ class LangGraphCheckpointServiceTests(unittest.TestCase):
             "postgresql://test",
             connect_timeout=20,
             autocommit=True,
-            row_factory=unittest.mock.ANY,
+            row_factory=ANY,
         )
 
         saver_arguments = mock_saver_class.call_args.kwargs
-        self.assertIs(saver_arguments["conn"], connection)
+        self.assertIs(mock_saver_class.call_args.args[0], connection)
         serializer = saver_arguments["serde"]
         self.assertIsInstance(serializer, JsonPlusSerializer)
         self.assertIsNone(serializer._allowed_msgpack_modules)
