@@ -496,6 +496,11 @@ if learner.get("role") != "admin":
         st.error(
             "We could not verify course availability. Please try again later."
         )
+        st.sidebar.button(
+            "Sign out",
+            on_click=logout_user,
+            use_container_width=True,
+        )
         st.stop()
 
     if not course_available:
@@ -504,6 +509,11 @@ if learner.get("role") != "admin":
             "Python Programming is currently being prepared by the "
             "EduPath team. Learner access will be available after the "
             "course and its approved learning resources are published."
+        )
+        st.sidebar.button(
+            "Sign out",
+            on_click=logout_user,
+            use_container_width=True,
         )
         st.stop()
 
