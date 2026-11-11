@@ -970,6 +970,39 @@ class LearnerToolGraphTests(unittest.TestCase):
 
         build_model.assert_called_once_with(GENERATION_MODEL)
 
+    @patch("agents.tutor_graph._build_learner_tool_model")
+    def test_tool_router_stops_after_one_fallback_failure(self, build_model):
+        primary_error = RuntimeError("Primary model unavailable")
+        primary_error.code = 503
+        fallback_error = RuntimeError("Fallback model unavailable")
+        fallback_error.code = 503
+        build_model.side_effect = [
+            RaisingLearnerToolModel(primary_error),
+            RaisingLearnerToolModel(fallback_error),
+        ]
+
+        graph = build_tutor_graph(enable_tools=True)
+
+        with (
+            patch(
+                "agents.tutor_graph.resolve_contextual_question",
+                side_effect=lambda question, conversation_history, client:
+                    question,
+            ),
+            self.assertRaises(AnswerGenerationError),
+        ):
+            graph.invoke(
+                self._graph_input("What is in my study plan?")
+            )
+
+        self.assertEqual(
+            build_model.call_args_list,
+            [
+                call(GENERATION_MODEL),
+                call(FALLBACK_GENERATION_MODEL),
+            ],
+        )
+
     def test_learner_tools_require_authenticated_user_before_model_call(self):
         tool_model = FakeLearnerToolModel(
             AIMessage(content="No learner data is needed.")
