@@ -70,13 +70,15 @@ def start_assessment(
 
         with connection.cursor() as cursor:
 
-            # Verify that the learner exists and is active.
+            # Verify and share-lock the active learner row. A concurrent
+            # account deactivation must wait until assessment creation commits.
             cursor.execute(
                 """
                 SELECT user_id
                 FROM users
                 WHERE user_id = %s
-                  AND is_active = TRUE;
+                  AND is_active = TRUE
+                FOR SHARE;
                 """,
                 (learner_id,),
             )
