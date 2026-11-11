@@ -8,7 +8,7 @@ import streamlit as st
 _THEME_CSS = """
 :root {
     --edupath-ink: #17233a;
-    --edupath-muted: #68758b;
+    --edupath-muted: #59677e;
     --edupath-primary: #425fe3;
     --edupath-primary-dark: #304bc4;
     --edupath-border: #e5eaf2;
@@ -93,56 +93,79 @@ p, li, label, [data-testid="stMarkdownContainer"] {
     border-color: rgba(226, 232, 240, 0.15);
 }
 
-[data-testid="stSidebar"] [data-testid="stRadio"] > label {
-    color: #dce5f3;
-    font-weight: 650;
-    font-size: 0.78rem;
-    letter-spacing: 0.09em;
+/* Sidebar workspace navigation uses real buttons, not radio controls. */
+.st-key-edupath_sidebar_nav [data-testid="stCaptionContainer"] {
+    margin: 0 0 0.45rem;
+    color: #b9c7dc !important;
+    font-size: 0.72rem;
+    font-weight: 760;
+    letter-spacing: 0.11em;
     text-transform: uppercase;
 }
 
-[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] {
-    display: flex;
-    flex-direction: column;
-    gap: 0.42rem;
+.st-key-edupath_sidebar_nav [data-testid="stButton"] {
+    margin: 0 0 0.28rem;
 }
 
-[data-testid="stSidebar"] [data-testid="stRadio"] [data-baseweb="radio"] {
-    display: none !important;
-}
-
-[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] label {
+.st-key-edupath_sidebar_nav [data-testid="stButton"] button {
     display: flex;
-    align-items: center;
-    box-sizing: border-box;
+    justify-content: flex-start;
     width: 100%;
-    min-height: 2.65rem;
-    margin: 0;
+    min-height: 2.62rem;
     padding: 0.58rem 0.82rem;
-    border: 1px solid transparent;
     border-radius: 11px;
-    color: #dce5f3;
-    background: transparent;
-    font-weight: 560;
-    transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+    text-align: left;
+    font-size: 0.88rem;
+    font-weight: 570;
+    box-shadow: none !important;
 }
 
-[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] label p {
-    margin: 0;
-    color: inherit;
-    line-height: 1.35;
+.st-key-edupath_sidebar_nav [data-testid="stBaseButton-secondary"] {
+    border-color: transparent !important;
+    color: #dce5f3 !important;
+    background: transparent !important;
 }
 
-[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] label:hover {
-    background: rgba(255, 255, 255, 0.09);
-    border-color: rgba(205, 216, 255, 0.13);
+.st-key-edupath_sidebar_nav [data-testid="stBaseButton-secondary"]:hover:not(:disabled) {
+    border-color: rgba(205, 216, 255, 0.16) !important;
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.09) !important;
+    transform: none;
 }
 
-[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {
-    background: rgba(111, 139, 255, 0.22);
-    border-color: rgba(158, 177, 255, 0.36);
-    color: #ffffff;
+.st-key-edupath_sidebar_nav [data-testid="stBaseButton-primary"] {
+    border-color: rgba(158, 177, 255, 0.40) !important;
+    color: #ffffff !important;
+    background: linear-gradient(
+        135deg,
+        rgba(84, 111, 232, 0.94),
+        rgba(57, 82, 194, 0.94)
+    ) !important;
+    box-shadow: 0 5px 14px rgba(4, 12, 30, 0.18) !important;
+}
+
+.st-key-edupath_sidebar_nav [data-testid="stBaseButton-primary"]:hover:not(:disabled) {
+    border-color: rgba(186, 199, 255, 0.58) !important;
+    color: #ffffff !important;
+    background: linear-gradient(
+        135deg,
+        #627cf0,
+        #435fcf
+    ) !important;
+    transform: none;
+}
+
+.st-key-edupath_sidebar_sign_out [data-testid="stButton"] button {
+    border-color: #d9e2ef !important;
+    color: #263650 !important;
+    background: #ffffff !important;
     font-weight: 680;
+}
+
+.st-key-edupath_sidebar_sign_out [data-testid="stButton"] button:hover:not(:disabled) {
+    border-color: #aebcf5 !important;
+    color: #304bc4 !important;
+    background: #f4f6ff !important;
 }
 
 .edupath-sidebar-brand {
@@ -442,7 +465,20 @@ p, li, label, [data-testid="stMarkdownContainer"] {
 
 /* Feedback and data surfaces */
 [data-testid="stAlert"] {
+    border: 1px solid rgba(116, 132, 160, 0.18);
     border-radius: 12px;
+}
+
+[data-testid="stAlert"] [data-testid="stMarkdownContainer"],
+[data-testid="stAlert"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stAlert"] [data-testid="stMarkdownContainer"] li {
+    color: #344054 !important;
+    font-weight: 520;
+}
+
+[data-testid="stAlert"] [data-testid="stMarkdownContainer"] strong {
+    color: #1d2939 !important;
+    font-weight: 720;
 }
 
 [data-testid="stDataFrame"],
@@ -474,19 +510,80 @@ hr {
     border-color: #e8edf4;
 }
 
-/* Responsive spacing */
-@media (max-width: 900px) {
+/* Keyed login layout keeps the sign-in composition vertically balanced. */
+.st-key-edupath_login_layout {
+    display: flex;
+    min-height: calc(100vh - 5.2rem);
+    align-items: center;
+}
+
+.st-key-edupath_login_layout > div {
+    width: 100%;
+}
+
+.st-key-edupath_login_card {
+    padding: 1.25rem;
+    border-color: #dce4f0 !important;
+    border-radius: 18px !important;
+    background: rgba(255, 255, 255, 0.90) !important;
+}
+
+/* Responsive spacing and columns. Streamlit's default column wrap threshold
+   is narrow; this keeps dense admin layouts usable in a half-width browser. */
+@media (max-width: 1100px) {
     .block-container {
-        padding: 1.5rem 1.15rem 2.5rem;
+        padding: 1.45rem 1.2rem 2.5rem;
+    }
+
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+        gap: 0.85rem 1rem !important;
+    }
+
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+        flex: 1 1 245px !important;
+        min-width: min(100%, 245px) !important;
     }
 
     .edupath-login-wrap {
-        padding: 0.8rem 0 1.2rem;
+        padding: 0.6rem 0 0.8rem;
+    }
+
+    .st-key-edupath_login_layout {
+        min-height: auto;
+        padding: 1.5rem 0;
     }
 
     .edupath-dashboard-hero {
         padding: 1.35rem;
         border-radius: 16px;
+    }
+}
+
+@media (max-width: 640px) {
+    .block-container {
+        padding: 1rem 0.8rem 2rem;
+    }
+
+    .edupath-page-header {
+        margin-bottom: 1.15rem;
+    }
+
+    .edupath-page-title {
+        font-size: 1.8rem;
+    }
+
+    .edupath-page-description {
+        font-size: 0.93rem;
+    }
+
+    .edupath-login-title {
+        font-size: clamp(2rem, 9vw, 2.7rem);
+    }
+
+    [data-testid="stMetric"] {
+        min-height: 88px;
+        padding: 0.8rem;
     }
 }
 """
