@@ -670,3 +670,32 @@ Date: 2026-11-11
 - Tests have been added but have not yet been run in the local environment.
 - The latest user-verified full-suite baseline before this milestone was 492 passed and 68 subtests passed on November 11, 2026.
 - The nine sample learning resources remain unuploaded; final RAG ingestion and live evaluation remain deferred to the final integration phase.
+
+
+## Milestone: Administrator AI Tutor Run Operations
+
+Date: 2026-11-11
+
+### Completed
+- Added an administrator-only aggregate insights service for authenticated
+  persistent Tutor runs associated with the Python course.
+- Added active-administrator authorization in PostgreSQL before metrics are
+  queried; the service returns only aggregate counts, percentages, durations,
+  and date buckets.
+- Added 14-day run totals by status, average duration of completed runs,
+  completed share and failure rate among finished runs, and daily aggregates.
+- Added an administrator-only AI Tutor Operations page and navigation entry.
+- Kept the report privacy-preserving: it does not expose learner IDs, session
+  IDs, prompts, answers, node sequences, or exception details.
+- Reused the existing `agent_runs` and course/session relationships; no
+  migration or additional dependency is required.
+- Added service and UI tests for authorization, validation, aggregate metric
+  calculations, empty results, daily trend rendering, and duration formatting.
+
+### Verification status
+- Implementation has been committed to the feature branch. Local focused and
+  full-suite verification is pending after the developer pulls this change.
+- The preceding user-verified baseline was 507 passed and 72 subtests passed
+  on November 11, 2026, before this dashboard was added.
+- The nine sample learning resources remain unuploaded. Final RAG ingestion
+  and live retrieval evaluation remain deferred to the final integration phase.
