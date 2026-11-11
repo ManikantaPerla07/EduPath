@@ -395,6 +395,7 @@ class StudyPlanDatabaseTests(unittest.TestCase):
             for call in cursor.execute.call_args_list
         ]
         self.assertIn("c.is_published = true", executed_sql[0])
+        self.assertIn("FOR UPDATE OF u, lp, c", executed_sql[0])
         self.assertTrue(
             any("update study_plans" in sql for sql in executed_sql)
         )
@@ -649,6 +650,10 @@ class StudyPlanActivityStatusTests(unittest.TestCase):
         self.assertEqual(cursor.execute.call_count, 1)
         self.assertIn(
             "c.is_published = TRUE",
+            cursor.execute.call_args.args[0],
+        )
+        self.assertIn(
+            "FOR UPDATE OF pi, p, u, c",
             cursor.execute.call_args.args[0],
         )
 
