@@ -112,6 +112,7 @@ class AgentTelemetryUITests(unittest.TestCase):
                 }
             ],
             width="stretch",
+            height="content",
             hide_index=True,
         )
 
