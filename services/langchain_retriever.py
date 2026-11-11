@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from langchain_core.callbacks.manager import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 
@@ -19,6 +20,8 @@ class NeonPgVectorRetriever(BaseRetriever):
     def _get_relevant_documents(
         self,
         query: str,
+        *,
+        run_manager: CallbackManagerForRetrieverRun,
     ) -> list[Document]:
         """Retrieve relevant course chunks and return LangChain Documents."""
 
