@@ -13,6 +13,7 @@ from services.conversation_context_service import (
     ConversationContextError,
 )
 from services.chat_service import (
+    ChatRateLimitError,
     create_chat_session,
     delete_chat_session,
     get_chat_messages,
@@ -487,6 +488,10 @@ def _process_question(
             role="user",
             content=question,
         )
+
+    except ChatRateLimitError as exc:
+        st.warning(str(exc))
+        return
 
     except (ValueError, LookupError, psycopg.Error):
         st.error(
