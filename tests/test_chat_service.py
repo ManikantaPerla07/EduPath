@@ -888,7 +888,7 @@ class ChatDatabaseTests(unittest.TestCase):
 
         self.assertEqual(cursor.execute.call_count, 3)
         self.assertIn(
-            "SELECT thread_id",
+            "SELECT cs.thread_id",
             cursor.execute.call_args_list[0].args[0],
         )
         self.assertIn(
@@ -985,7 +985,7 @@ class ChatDatabaseTests(unittest.TestCase):
 
         self.assertEqual(cursor.execute.call_count, 3)
         self.assertIn(
-            "SELECT thread_id",
+            "SELECT cs.thread_id",
             cursor.execute.call_args_list[0].args[0],
         )
         self.assertIn(
