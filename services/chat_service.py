@@ -495,7 +495,7 @@ def save_chat_message(
                                     EPOCH FROM (
                                         MIN(cm.created_at)
                                         + (%s * INTERVAL '1 minute')
-                                        - NOW()
+                                        - statement_timestamp()
                                     )
                                 )
                             )::INTEGER
@@ -506,7 +506,7 @@ def save_chat_message(
                     WHERE cs.user_id = %s
                       AND cm.role = 'user'
                       AND cm.created_at >= (
-                          NOW() - (%s * INTERVAL '1 minute')
+                          statement_timestamp() - (%s * INTERVAL '1 minute')
                       );
                     """,
                     (
