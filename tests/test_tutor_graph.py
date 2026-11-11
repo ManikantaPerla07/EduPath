@@ -911,7 +911,7 @@ class LearnerToolGraphTests(unittest.TestCase):
             "insufficient_evidence": False,
             "citations": [],
             "retrieved_count": 0,
-            "model": FALLBACK_GENERATION_MODEL,
+            "model": "test-model",
             "reason": None,
             "learner_context_used": True,
         }
