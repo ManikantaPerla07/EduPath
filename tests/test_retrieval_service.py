@@ -171,6 +171,8 @@ class RetrievalDatabaseTests(unittest.TestCase):
 
         self.assertIn("<=>", sql)
         self.assertIn("processing_status = 'ready'", sql)
+        self.assertIn("archived_at IS NULL", sql)
+        self.assertIn("c.is_published = TRUE", sql)
         self.assertIn("embedding IS NOT NULL", sql)
         self.assertIn("embedding_model = %s", sql)
         self.assertIn("ORDER BY", sql)
