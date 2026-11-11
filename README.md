@@ -7,10 +7,10 @@ EduPath is an AI-powered learning platform for beginner Python programming. It c
 - **Google sign-in and learner onboarding:** authenticates learners and stores learner profiles in PostgreSQL.
 - **AI Tutor:** answers questions using course material retrieved through retrieval-augmented generation (RAG), with citations where available. Learners can rate each assistant answer with thumbs up/down; feedback is persisted per answer and can be updated later.
 - **LangGraph agent workflow:** orchestrates contextual question resolution, grounded retrieval, progress-aware teaching, and answer generation. For authenticated chat sessions, Gemini can select read-only tools for the learner's own progress or study plan; learner identity and course scope are injected by the application, not chosen by the model.
-- **Diagnostic assessment:** provides a 27-question Python assessment covering nine topics. Assessment submission rechecks active-account status and locks the learner account during grading, so a concurrent deactivation cannot race with a submission.
+- **Diagnostic assessment:** provides a 27-question Python assessment covering nine topics. Assessment creation and submission verify and lock the active learner account while saving, preventing concurrent deactivation from racing with either operation.
 - **Adaptive Practice and Targeted Revision:** presents questions one at a time, gives immediate feedback, and adjusts the preferred difficulty of the next question based on the previous answer.
 - **Learning progress:** tracks attempts, accuracy, and topic mastery status.
-- **Personalized study plan:** schedules learning, practice, revision, and spaced-review activities based on assessment evidence, prerequisites, learning goals, and available study time.
+- **Personalized study plan:** schedules learning, practice, revision, and spaced-review activities based on assessment evidence, prerequisites, learning goals, and available study time. Plan generation and activity updates lock the learner account while saving changes, preventing concurrent deactivation from racing with those writes.
 - **Persistent conversations and plans:** stores learner chat history, study-plan activity status, and per-chat LangGraph checkpoints in Neon. Deleting a conversation also deletes its checkpoint state and is blocked while a Tutor response is actively running.
 - **Tutor request protection:** enforces a database-serialized rolling limit of 20 learner questions per account every 10 minutes across that learner's conversations. Assistant replies and feedback do not consume the question allowance. Partial indexes support the recent-question count and active-run reservation checks as chat history grows.
 - **AI Tutor run observability:** records success/failure status and execution duration for authenticated persistent Tutor runs. Telemetry stores lifecycle metadata and exception-class codes only; it does not store prompts, answers, or learner profile contents.
@@ -241,7 +241,7 @@ python -m compileall -q agents services ui tests evaluation
 git diff --check
 ```
 
-The latest user-verified full-suite result before the chat/Tutor query-index migration was **527 passed, 77 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
+The latest user-verified full-suite result before the learner-account write-lock refinement was **530 passed, 77 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
 
 ## Evaluate RAG retrieval
 
