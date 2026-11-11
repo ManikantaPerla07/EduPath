@@ -106,6 +106,8 @@ def search_knowledge_base(
             ON t.topic_id = d.topic_id
            AND t.course_id = d.course_id
         WHERE d.processing_status = 'ready'
+          AND d.archived_at IS NULL
+          AND c.is_published = TRUE
           AND dc.embedding IS NOT NULL
           AND dc.embedding_model = %s
           AND c.course_slug = %s
