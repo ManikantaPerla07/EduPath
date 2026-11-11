@@ -202,7 +202,7 @@ def embed_pending_document_chunks(
 
             cursor.execute(
                 """
-                SELECT source_title, processing_status
+                SELECT source_title, processing_status, archived_at
                 FROM documents
                 WHERE document_id = %s;
                 """,
@@ -214,7 +214,12 @@ def embed_pending_document_chunks(
             if document is None:
                 raise ValueError("The requested document was not found.")
 
-            source_title, processing_status = document
+            source_title, processing_status, archived_at = document
+
+            if archived_at is not None:
+                raise ValueError(
+                    "Archived documents cannot be embedded. Restore the document first."
+                )
 
             if processing_status != "ready":
                 raise ValueError(
