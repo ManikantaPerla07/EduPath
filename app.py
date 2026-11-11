@@ -15,6 +15,7 @@ from ui.study_plan import render_study_plan
 from ui.tutor import render_tutor
 from ui.knowledge_management import render_knowledge_management
 from ui.tutor_feedback import render_tutor_feedback
+from ui.agent_telemetry import render_agent_telemetry
 
 
 st.set_page_config(
@@ -371,6 +372,7 @@ def home_screen(learner):
         navigation_options.extend([
             "Knowledge Management",
             "AI Tutor Feedback",
+            "AI Tutor Operations",
         ])
 
     selected_page = st.sidebar.radio(
@@ -415,6 +417,13 @@ def home_screen(learner):
             st.error("An active administrator account is required.")
             return
         render_tutor_feedback(learner)
+        return
+
+    if selected_page == "AI Tutor Operations":
+        if learner.get("role") != "admin":
+            st.error("An active administrator account is required.")
+            return
+        render_agent_telemetry(learner)
         return
 
     # Main learner dashboard.
