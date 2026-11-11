@@ -591,3 +591,22 @@ Date: 2026-11-05
 - Topic coverage is a technical ingestion/completeness measure, not an
   automated evaluation of factual accuracy or pedagogical quality. The
   administrator must still review source rights and educational content.
+
+## Milestone: Persistent AI Tutor Answer Feedback
+
+Date: 2026-11-11
+
+### Completed
+- Added database migration 005 for one feedback record per assistant message.
+- Added learner-scoped feedback persistence to the chat service.
+- The database write verifies that the message is an assistant response in a conversation owned by the authenticated learner.
+- Added an upsert so a learner can change a previous thumbs-up/down rating without creating duplicate records.
+- Included saved feedback in chronological chat-history retrieval.
+- Added a thumbs-up/down control beneath each assistant response in the Tutor transcript.
+- Restored previously saved ratings when messages are reopened.
+- Updated the README and added service tests for validation, ownership, assistant-role enforcement, retrieval and rating updates.
+
+### Verification status
+- Automated feedback tests have been added but have not yet been run in the local environment.
+- Apply migration 005 by running the existing migration runner after pulling this commit.
+- The nine sample learning resources remain unuploaded; final RAG corpus ingestion and live retrieval validation remain deferred to the final integration phase.
