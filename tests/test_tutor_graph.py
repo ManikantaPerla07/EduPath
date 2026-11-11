@@ -559,6 +559,107 @@ class TestTutorGraph(unittest.TestCase):
 
 
     @patch("agents.tutor_graph.get_chat_session")
+    @patch(
+        "agents.tutor_graph.start_agent_run",
+        side_effect=RuntimeError("Telemetry database unavailable"),
+    )
+    @patch("agents.tutor_graph.finish_agent_run")
+    @patch("agents.tutor_graph.open_langgraph_checkpointer")
+    @patch("agents.tutor_graph.build_tutor_graph")
+    def test_run_continues_when_telemetry_cannot_start(
+        self,
+        build_graph,
+        open_checkpointer,
+        finish_run,
+        start_run,
+        get_session,
+    ):
+        user_id = "123e4567-e89b-12d3-a456-426614174000"
+        session_id = "11111111-1111-4111-8111-111111111111"
+        get_session.return_value = {
+            "thread_id": "22222222-2222-4222-8222-222222222222"
+        }
+
+        checkpointer_context = MagicMock()
+        checkpointer_context.__enter__.return_value = object()
+        checkpointer_context.__exit__.return_value = False
+        open_checkpointer.return_value = checkpointer_context
+
+        expected_result = {
+            "answer": "A variable refers to a value. [S1]",
+            "insufficient_evidence": False,
+            "citations": [{"source_id": "S1"}],
+            "retrieved_count": 1,
+            "model": "test-model",
+            "reason": None,
+        }
+        graph = MagicMock()
+        graph.invoke.return_value = {"answer_result": expected_result}
+        build_graph.return_value = graph
+
+        result = run_tutor_graph(
+            question="What is a variable?",
+            course_slug="python-basics",
+            user_id=user_id,
+            session_id=session_id,
+        )
+
+        self.assertEqual(result, expected_result)
+        start_run.assert_called_once()
+        finish_run.assert_not_called()
+
+
+    @patch("agents.tutor_graph.get_chat_session")
+    @patch("agents.tutor_graph.start_agent_run", return_value="run-123")
+    @patch(
+        "agents.tutor_graph.finish_agent_run",
+        side_effect=RuntimeError("Telemetry database unavailable"),
+    )
+    @patch("agents.tutor_graph.open_langgraph_checkpointer")
+    @patch("agents.tutor_graph.build_tutor_graph")
+    def test_run_response_survives_telemetry_finish_failure(
+        self,
+        build_graph,
+        open_checkpointer,
+        finish_run,
+        start_run,
+        get_session,
+    ):
+        user_id = "123e4567-e89b-12d3-a456-426614174000"
+        session_id = "11111111-1111-4111-8111-111111111111"
+        get_session.return_value = {
+            "thread_id": "22222222-2222-4222-8222-222222222222"
+        }
+
+        checkpointer_context = MagicMock()
+        checkpointer_context.__enter__.return_value = object()
+        checkpointer_context.__exit__.return_value = False
+        open_checkpointer.return_value = checkpointer_context
+
+        expected_result = {
+            "answer": "A variable refers to a value. [S1]",
+            "insufficient_evidence": False,
+            "citations": [{"source_id": "S1"}],
+            "retrieved_count": 1,
+            "model": "test-model",
+            "reason": None,
+        }
+        graph = MagicMock()
+        graph.invoke.return_value = {"answer_result": expected_result}
+        build_graph.return_value = graph
+
+        result = run_tutor_graph(
+            question="What is a variable?",
+            course_slug="python-basics",
+            user_id=user_id,
+            session_id=session_id,
+        )
+
+        self.assertEqual(result, expected_result)
+        finish_run.assert_called_once()
+
+
+    @patch("agents.tutor_graph.get_chat_session")
     def test_persistent_session_requires_authenticated_user_id(
         self,
         get_session,
