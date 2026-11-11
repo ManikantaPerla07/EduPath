@@ -394,6 +394,7 @@ class StudyPlanDatabaseTests(unittest.TestCase):
             call.args[0].lower()
             for call in cursor.execute.call_args_list
         ]
+        self.assertIn("c.is_published = true", executed_sql[0])
         self.assertTrue(
             any("update study_plans" in sql for sql in executed_sql)
         )
