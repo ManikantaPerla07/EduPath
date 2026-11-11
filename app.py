@@ -16,6 +16,7 @@ from ui.tutor import render_tutor
 from ui.knowledge_management import render_knowledge_management
 from ui.tutor_feedback import render_tutor_feedback
 from ui.agent_telemetry import render_agent_telemetry
+from ui.theme import apply_theme, render_page_header
 
 
 st.set_page_config(
@@ -23,8 +24,6 @@ st.set_page_config(
     page_icon="🎓",
     layout="wide",
 )
-
-from ui.theme import apply_theme, render_page_header
 
 apply_theme()
 
