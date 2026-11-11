@@ -499,6 +499,7 @@ class ChatDatabaseTests(unittest.TestCase):
         self.assertIn("FOR UPDATE", session_lock_sql)
         self.assertIn("COUNT(*)::INTEGER", rate_limit_sql)
         self.assertIn("created_at >=", rate_limit_sql)
+        self.assertIn("statement_timestamp()", rate_limit_sql)
         self.assertIn("INSERT INTO chat_messages", insert_sql)
         self.assertIn("last_activity_at = NOW()", update_sql)
         self.assertEqual(
