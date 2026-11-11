@@ -19,9 +19,11 @@ EduPath is an AI-powered learning platform for beginner Python programming. It c
 |---|---|
 | UI | Streamlit |
 | Language | Python 3.11 |
-| AI model and embeddings | Google Gemini (`google-genai`) |
+| AI model and embeddings | Google Gemini (`google-genai`, exposed through LangChain adapters) |
+| LLM prompts and runnable chains | LangChain |
 | Agent orchestration | LangGraph |
-| Retrieval | RAG, Gemini embeddings, PostgreSQL pgvector |
+| Document processing | pypdf plus page-aware LangChain loader and text splitter |
+| Retrieval | RAG, Gemini Embedding 2, PostgreSQL pgvector |
 | Database | PostgreSQL (Neon) |
 | Authentication | Google OpenID Connect through Streamlit authentication |
 | Tests | pytest |
@@ -67,7 +69,11 @@ EduPath/
 │   └── DEVELOPMENT_LOG.md  # Implementation milestones and decisions
 ├── rag/                    # Retrieval-related modules
 ├── sample_documents/       # Sample Python learning material
-├── services/               # Application and domain services
+├── services/
+│   ├── langchain_document_processing.py # Page-aware LangChain loader/splitter
+│   ├── langchain_embeddings.py          # Gemini Embedding 2 adapter
+│   ├── langchain_retriever.py           # Neon pgvector retriever adapter
+│   └── ...                              # Application and domain services
 ├── tests/                  # Automated tests
 ├── ui/                     # Streamlit learner interfaces
 ├── .streamlit/
