@@ -698,12 +698,15 @@ def update_study_plan_item_status(
                     ON u.user_id = p.user_id
                 JOIN learner_profiles AS lp
                     ON lp.user_id = u.user_id
+                JOIN courses AS c
+                    ON c.course_id = p.course_id
                 WHERE pi.plan_item_id = %s
                   AND p.user_id = %s
                   AND p.status IN ('active', 'completed')
                   AND u.is_active = TRUE
                   AND lp.adult_confirmation = TRUE
-                FOR UPDATE OF pi, p;
+                  AND c.is_published = TRUE
+                FOR UPDATE OF pi, p, c;
                 """,
                 (item_id, learner_id),
             )
