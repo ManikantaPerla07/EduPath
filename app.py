@@ -478,7 +478,6 @@ def home_screen(learner):
         render_agent_telemetry(learner)
         return
 
-    escaped_name = __import__("html").escape(str(learner_name))
     render_page_header(
         "LEARNER WORKSPACE",
         f"Welcome back, {learner_name}",
