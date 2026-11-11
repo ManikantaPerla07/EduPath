@@ -201,6 +201,7 @@ class DocumentArchivalTests(unittest.TestCase):
             (archived_at,),
             (True,),
             (0,),
+            (9, 9),
         ]
         cursor.rowcount = 1
         connection = make_connection(cursor)
@@ -251,6 +252,7 @@ class DocumentArchivalTests(unittest.TestCase):
             (datetime(2026, 11, 11, tzinfo=timezone.utc),),
             (True,),
             (1,),
+            (9, 0),
         ]
         connection = make_connection(cursor)
 
@@ -271,6 +273,45 @@ class DocumentArchivalTests(unittest.TestCase):
 
         self.assertFalse(result["course_unpublished"])
         self.assertFalse(
+            any(
+                "SET is_published = FALSE" in call.args[0]
+                for call in cursor.execute.call_args_list
+            )
+        )
+
+    def test_course_unpublishes_when_archive_breaks_topic_coverage(self):
+        from datetime import datetime, timezone
+        from services.document_service import archive_course_document
+
+        cursor = make_cursor()
+        cursor.fetchone.side_effect = [
+            ("admin",),
+            (COURSE_ID, "ready", None),
+            (datetime(2026, 11, 11, tzinfo=timezone.utc),),
+            (True,),
+            (1,),
+            (9, 1),
+        ]
+        cursor.rowcount = 1
+        connection = make_connection(cursor)
+
+        with (
+            patch(
+                "services.document_service.load_database_url",
+                return_value="postgresql://test",
+            ),
+            patch(
+                "services.document_service.psycopg.connect",
+                return_value=connection,
+            ),
+        ):
+            result = archive_course_document(
+                ADMIN_ID,
+                str(DOCUMENT_ID),
+            )
+
+        self.assertTrue(result["course_unpublished"])
+        self.assertTrue(
             any(
                 "SET is_published = FALSE" in call.args[0]
                 for call in cursor.execute.call_args_list
