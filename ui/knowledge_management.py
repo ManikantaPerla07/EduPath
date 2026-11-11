@@ -407,18 +407,27 @@ def render_knowledge_management(learner: dict) -> None:
     )
 
     for topic in publication["topic_coverage"]:
-        topic_columns = st.columns([4, 1, 2])
+        topic_columns = st.columns([3, 1, 1, 1])
         topic_columns[0].markdown(f"**{topic['topic_name']}**")
         topic_columns[1].metric(
             "Resources",
             topic["fully_embedded_document_count"],
         )
+        topic_columns[2].metric(
+            "Embedded chunks",
+            (
+                f"{topic['embedded_chunk_count']}/"
+                f"{topic['chunk_count']}"
+                if topic["chunk_count"]
+                else "—"
+            ),
+        )
         if topic["is_covered"]:
-            topic_columns[2].success("Covered")
+            topic_columns[3].success("Covered")
         elif topic["chunk_count"] > topic["embedded_chunk_count"]:
-            topic_columns[2].warning("Embedding incomplete")
+            topic_columns[3].warning("Embedding incomplete")
         else:
-            topic_columns[2].error("Resource needed")
+            topic_columns[3].error("Resource needed")
 
     if publication["uncovered_topics"]:
         st.warning(
