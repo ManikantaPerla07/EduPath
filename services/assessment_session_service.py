@@ -61,26 +61,7 @@ def start_assessment(
         if not isinstance(topic_slug, str) or not topic_slug.strip():
             raise ValueError("Topic slug cannot be empty.")
 
-    # 3. Fetch questions from the question bank.
-    records = fetch_question_records(
-        course_slug=course_slug,
-        topic_slug=topic_slug,
-    )
-
-    if not records:
-        raise ValueError("No active questions found for this assessment.")
-
-    selected_topic_id = records[0]["topic_id"] if topic_slug else None
-
-    if selected_topic_id is not None:
-        if any(
-            record["topic_id"] != selected_topic_id
-            for record in records
-        ):
-            raise ValueError("Assessment questions must belong to one topic.")
-
-    learner_questions = []
-
+    # 3. Check learner and course access before selecting any questions.
     # 4. Create the session and question snapshots atomically.
     with psycopg.connect(
         load_database_url(),
@@ -126,6 +107,32 @@ def start_assessment(
                 raise PermissionError(
                     "This course is not currently available to learners."
                 )
+
+            # Fetch question records only after confirming learner access.
+            records = fetch_question_records(
+                course_slug=course_slug,
+                topic_slug=topic_slug,
+            )
+
+            if not records:
+                raise ValueError(
+                    "No active questions found for this assessment."
+                )
+
+            selected_topic_id = (
+                records[0]["topic_id"] if topic_slug else None
+            )
+
+            if selected_topic_id is not None:
+                if any(
+                    record["topic_id"] != selected_topic_id
+                    for record in records
+                ):
+                    raise ValueError(
+                        "Assessment questions must belong to one topic."
+                    )
+
+            learner_questions = []
 
             # Practice and revision assessments adapt to learner progress.
             # Diagnostic assessments deliberately retain the original
