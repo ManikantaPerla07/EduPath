@@ -2,6 +2,7 @@ import psycopg
 import streamlit as st
 
 from ui.theme import render_page_header
+from services.course_service import is_course_published
 
 from services.assessment_session_service import start_assessment
 from services.assessment_submission_service import submit_assessment
@@ -558,6 +559,24 @@ def render_assessment(learner: dict) -> None:
         "Choose the assessment mode that best supports your next learning step.",
     )
 
+    course_is_published = True
+    if learner.get("role") == "admin":
+        try:
+            course_is_published = is_course_published(COURSE_SLUG)
+        except (ValueError, RuntimeError, psycopg.Error):
+            st.error(
+                "We couldn't verify course publication status. "
+                "Please refresh and try again."
+            )
+            return
+
+    if not course_is_published:
+        st.info(
+            "Python Programming is not published yet. Assessment sessions "
+            "will be available after all course publication requirements "
+            "have been met."
+        )
+
     diagnostic_col, practice_col, revision_col = st.columns(3)
 
     with diagnostic_col:
@@ -576,6 +595,7 @@ def render_assessment(learner: dict) -> None:
                 width="stretch",
                 type="primary",
                 key="edupath_start_diagnostic",
+                disabled=not course_is_published,
             ):
                 _start_assessment(learner, "diagnostic")
 
@@ -593,6 +613,7 @@ def render_assessment(learner: dict) -> None:
                 "Start practice",
                 width="stretch",
                 key="edupath_start_practice",
+                disabled=not course_is_published,
             ):
                 _start_assessment(learner, "practice")
 
@@ -610,5 +631,6 @@ def render_assessment(learner: dict) -> None:
                 "Start revision",
                 width="stretch",
                 key="edupath_start_revision",
+                disabled=not course_is_published,
             ):
                 _start_assessment(learner, "revision")
