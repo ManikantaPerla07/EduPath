@@ -668,7 +668,7 @@ class LearnerToolGraphTests(unittest.TestCase):
             user_id=self.USER_ID,
             course_slug="python-basics",
         )
-        retrieve.assert_called_once()
+        retrieve.assert_not_called()
         generate.assert_called_once()
         generation_arguments = generate.call_args.kwargs
         self.assertEqual(generation_arguments["retrieved_chunks"], [])
