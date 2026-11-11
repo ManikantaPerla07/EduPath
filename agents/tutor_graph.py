@@ -203,6 +203,11 @@ def build_tutor_graph(
     ) -> dict[str, Any]:
         """Let Gemini select zero or more authenticated learner-data tools."""
 
+        if not state.get("user_id"):
+            raise ValueError(
+                "An authenticated learner is required for learner-data tools."
+            )
+
         decision_model = (
             tool_model
             if tool_model is not None
@@ -229,7 +234,9 @@ def build_tutor_graph(
                 RemoveMessage(id=REMOVE_ALL_MESSAGES),
                 HumanMessage(content=state["question"]),
                 decision,
-            ]
+            ],
+            # Never reuse learner data from a previous checkpointed turn.
+            "learner_context": {},
         }
 
     def route_after_tool_decision(state: TutorGraphState) -> str:
