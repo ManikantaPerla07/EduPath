@@ -58,8 +58,11 @@ TOOL SELECTION:
   attempts, accuracy, topic mastery, learning progress, or practice history.
 - Call get_my_study_plan when the learner asks about their own plan, schedule,
   pending activities, revision tasks, or upcoming study activities.
-- Call both tools when the learner explicitly needs both kinds of information.
-- Do not call tools for ordinary Python explanations, examples, or coding help.
+- Call both tools when the learner explicitly needs both kinds of personal data.
+- Only call tools when the question is exclusively about this learner's saved
+  progress or study plan.
+- Do not call tools when the question also asks for a Python explanation,
+  example, or code. Those requests must stay on the grounded RAG route.
 - Do not call tools for general educational questions that do not ask about
   this learner's own records.
 
@@ -183,7 +186,15 @@ def build_tutor_graph(
     def validate_input_node(
         state: TutorGraphState,
     ) -> dict[str, Any]:
-        return _validate_input(state)
+        """Validate input and clear transient data from the previous turn."""
+
+        return {
+            **_validate_input(state),
+            "retrieved_chunks": [],
+            "teaching_profile": None,
+            "learner_context": {},
+            "answer_result": {},
+        }
 
     def resolve_context_node(
         state: TutorGraphState,
@@ -336,7 +347,7 @@ def build_tutor_graph(
 
         arguments = {
             "question": state["retrieval_query"],
-            "retrieved_chunks": state["retrieved_chunks"],
+            "retrieved_chunks": state.get("retrieved_chunks") or [],
             "client": client,
         }
 
@@ -407,7 +418,9 @@ def build_tutor_graph(
             },
         )
         graph.add_edge("learner_tools", "collect_learner_context")
-        graph.add_edge("collect_learner_context", "retrieve_context")
+        # Personal-data-only questions can be answered directly from tool
+        # results. Mixed/course questions are routed to RAG by the tool router.
+        graph.add_edge("collect_learner_context", "generate_answer")
     else:
         graph.add_edge("resolve_context", "retrieve_context")
 
