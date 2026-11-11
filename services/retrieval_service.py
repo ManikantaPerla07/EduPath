@@ -6,10 +6,8 @@ from typing import Any
 import psycopg
 
 from services.assessment_service import load_database_url
-from services.embedding_service import (
-    EMBEDDING_MODEL,
-    generate_query_embedding,
-)
+from services.embedding_service import EMBEDDING_MODEL
+from services.langchain_embeddings import EduPathGeminiEmbeddings
 
 
 MIN_SEARCH_LIMIT = 1
@@ -77,10 +75,8 @@ def search_knowledge_base(
         limit=limit,
     )
 
-    query_vector = generate_query_embedding(
-        query=query,
-        client=client,
-    )
+    embeddings = EduPathGeminiEmbeddings(client=client)
+    query_vector = embeddings.embed_query(query)
 
     vector_literal = _vector_to_literal(query_vector)
     database_url = load_database_url()
