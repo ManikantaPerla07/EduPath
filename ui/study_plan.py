@@ -7,6 +7,8 @@ from datetime import date, datetime
 import psycopg
 import streamlit as st
 
+from ui.theme import render_page_header
+
 from services.study_plan_service import (
     fetch_active_study_plan,
     generate_study_plan,
@@ -250,17 +252,12 @@ def _display_plan(plan, user_id):
 def render_study_plan(learner):
     """Generate or retrieve the signed-in learner's Python study plan."""
 
-    st.title("📅 Your personalized study plan")
-
-    st.write(
-        "Build a practical learning schedule from your topic progress, "
-        "course prerequisites, learning goal, and available study time."
-    )
-
-    st.caption(
-        "Recommendations use transparent rules. Assessment results and "
-        "prerequisite order determine which topics are learned, revised, "
-        "or practised."
+    render_page_header(
+        "PERSONALIZED LEARNING",
+        "Your study plan",
+        "A practical schedule shaped by your topic progress, course prerequisites, "
+        "learning goal, and available study time. Recommendations use transparent "
+        "rules based on assessment evidence.",
     )
 
     user_id = str(learner["user_id"])
