@@ -63,7 +63,7 @@ class AdaptiveAssessmentSessionTests(unittest.TestCase):
 
         self.cursor.fetchone.side_effect = [
             (self.user_id,),
-            (self.course_id,),
+            (self.course_id, True),
             (self.assessment_id,),
             *[(item_id,) for item_id in self.item_ids],
         ]
