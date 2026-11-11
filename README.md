@@ -172,7 +172,7 @@ Seed and validate the Python question bank:
 python database\seed_questions.py
 ```
 
-Run these commands only against the intended development or demo database. The course seed script creates the course with `is_published = FALSE`; the current learner UI uses the fixed `python-basics` course slug and does not currently provide a course-publishing administration screen. Verify the intended course-access policy before making a public deployment.
+Run these commands only against the intended development or demo database. The course seed script creates the course with `is_published = FALSE`. The learner UI uses the fixed `python-basics` course slug. An active administrator must review its resources and explicitly publish it through Knowledge Management before student accounts can access the course.
 
 ### 6. Grant an administrator role for local resource management
 
@@ -201,7 +201,15 @@ RETURNING user_id, email, role;
 
 Sign out and sign in again. The Knowledge Management page and its document operations independently verify the active administrator role in PostgreSQL.
 
-### 7. Start the app
+### 7. Prepare and publish the Python course
+
+Open **Knowledge Management** as an administrator. Upload approved resources for the Python Programming course, associate them with the relevant topics, and use **Generate missing embeddings** until each resource intended for retrieval is fully embedded.
+
+The publication control checks that the course has at least one topic, at least one active assessment question, and at least one active ready resource with all of its chunk embeddings stored. This is a minimum technical readiness check, not a guarantee of complete topic coverage; review the inventory and ensure every taught topic has adequate approved material before publishing.
+
+Publishing enables learner access to the course. Unpublishing pauses learner access to the course's dashboard, assessments, progress, study plan, and tutor retrieval. Existing assessment submissions can still be completed. Archiving a resource preserves its file and chunks but excludes it from retrieval. If the last fully embedded active resource is archived, EduPath automatically unpublishes the course. Restoring a resource does not automatically republish the course.
+
+### 8. Start the app
 
 ```powershell
 python -m streamlit run app.py
