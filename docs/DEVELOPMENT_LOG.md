@@ -447,3 +447,23 @@ Date: 2026-11-05
 - Updated the existing missing-secret test for the new fallback behavior.
 - Verified the complete test suite: 356 passed, 19 subtests passed.
 - Verified Python compilation and `git diff --check`.
+
+## 2026-11-11 — Gemini Tool-Router Fallback and Transport Resilience
+
+- Added shared Gemini error classification for temporary HTTP 500, 502, 503,
+  and 504 responses, including recognized HTTPX/HTTPCore transport failures
+  such as remote protocol disconnects and request timeouts.
+- Extended learner-tool routing to try the configured primary model first and
+  use Gemini 3.5 Flash Lite when the primary request fails transiently.
+- Kept fallback bounded to one alternate model; authentication, permission,
+  and invalid-request errors do not trigger a model switch.
+- Preserved explicit model injection for deterministic graph tests.
+- Reused the shared retry classification in both direct Google Gen AI and
+  LangChain answer-generation fallback paths.
+- Added tests for status-code extraction, wrapped transport exceptions,
+  non-retryable client errors, learner-tool fallback selection, and bounded
+  routing behavior.
+- Automated test execution on the developer's local Windows environment is
+  pending after pulling this milestone. Live Gemini tool-calling verification
+  is also pending; a simple authenticated Gemini 3.5 Flash Lite text request
+  previously returned HTTP 200.
