@@ -537,8 +537,16 @@ Date: 2026-11-05
 - Added tests for publication readiness, admin authorization, archive/restore,
   automatic unpublishing, archived embedding rejection and published-course
   access filters.
-- Local automated verification and application of migration 004 are pending
-  after the developer pulls this milestone.
+- Developer applied migration 004 successfully to Neon on November 11,
+  2026. The migration report confirmed all four application migrations,
+  18 application tables, LangGraph checkpoints ready, and schema verification
+  successful.
+- The first focused/full test run reported 450 passed, 31 subtests passed,
+  and four failures. Three were outdated adaptive-assessment test fixtures
+  that did not include the newly queried publication flag; one expected an
+  earlier readiness-error phrase. The fixtures and readiness message have
+  been corrected in follow-up commits. Final regression verification remains
+  pending.
 - Course publication readiness is a minimum technical gate. Administrators
   must still review actual topic coverage and source rights before publication.
 - No external service or paid dependency was added.
