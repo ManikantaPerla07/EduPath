@@ -286,16 +286,24 @@ def build_tutor_graph(
 
             tool_name = message.name or "learner_tool"
 
+            # ToolNode marks handled exceptions as error messages. Never
+            # pass an error string to the language model as learner evidence.
+            if getattr(message, "status", "success") == "error":
+                continue
+
             try:
                 if not isinstance(message.content, str):
-                    raise ValueError("Tool output was not text.")
+                    continue
 
-                learner_context[tool_name] = json.loads(message.content)
+                tool_payload = json.loads(message.content)
+
+                if isinstance(tool_payload, dict):
+                    learner_context[tool_name] = tool_payload
 
             except (TypeError, ValueError, json.JSONDecodeError):
-                learner_context[tool_name] = {
-                    "error": "The learner data tool did not return valid structured data."
-                }
+                # Invalid tool output is not trusted evidence. An empty
+                # context makes the answer generator abstain safely.
+                continue
 
         return {"learner_context": learner_context}
 
