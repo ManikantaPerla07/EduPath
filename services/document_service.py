@@ -865,7 +865,40 @@ def archive_course_document(
                 )
                 remaining_searchable = cursor.fetchone()[0]
 
-                if remaining_searchable < 1:
+                cursor.execute(
+                    """
+                    SELECT
+                        COUNT(*)::INTEGER AS topic_count,
+                        COUNT(*) FILTER (
+                            WHERE NOT EXISTS (
+                                SELECT 1
+                                FROM documents AS topic_document
+                                LEFT JOIN document_chunks AS topic_chunk
+                                    ON topic_chunk.document_id =
+                                        topic_document.document_id
+                                WHERE topic_document.course_id = t.course_id
+                                  AND topic_document.topic_id = t.topic_id
+                                  AND topic_document.archived_at IS NULL
+                                  AND topic_document.processing_status = 'ready'
+                                GROUP BY topic_document.document_id
+                                HAVING COUNT(topic_chunk.chunk_id) > 0
+                                   AND COUNT(topic_chunk.embedding) =
+                                       COUNT(topic_chunk.chunk_id)
+                            )
+                        )::INTEGER AS uncovered_topic_count
+                    FROM topics AS t
+                    WHERE t.course_id = %s;
+                    """,
+                    (course_id,),
+                )
+                topic_coverage = cursor.fetchone()
+                topic_count, uncovered_topic_count = topic_coverage
+
+                if (
+                    remaining_searchable < 1
+                    or topic_count < 1
+                    or uncovered_topic_count > 0
+                ):
                     cursor.execute(
                         """
                         UPDATE courses
