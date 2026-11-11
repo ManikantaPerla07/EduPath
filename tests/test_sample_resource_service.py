@@ -1,10 +1,9 @@
 """Tests for the repeatable Python sample-resource import workflow."""
 
 from hashlib import sha256
-from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import call, patch
+from unittest.mock import patch
 
 from services.sample_resource_service import (
     SAMPLE_RESOURCE_MANIFEST,
@@ -146,6 +145,36 @@ class SampleResourceImportTests(unittest.TestCase):
             result["resources"][0]["document_id"],
             f"document-{item['topic_slug']}",
         )
+        self.assertEqual(ingest.call_count, 8)
+
+    @patch("services.sample_resource_service.ingest_document")
+    @patch("services.sample_resource_service.list_course_documents")
+    @patch("services.sample_resource_service.list_admin_course_topics")
+    def test_existing_hash_with_wrong_topic_is_reported_without_duplicate(
+        self,
+        list_topics,
+        list_documents,
+        ingest,
+    ):
+        item = SAMPLE_RESOURCE_MANIFEST[0]
+        list_topics.return_value = self.topics
+        existing = self._existing_document(item)
+        existing["topic_slug"] = "operators"
+        list_documents.return_value = [existing]
+
+        with patch(
+            "services.sample_resource_service.SAMPLE_DOCUMENTS_DIR",
+            self.sample_dir,
+        ):
+            result = import_sample_python_resources(USER_ID)
+
+        self.assertEqual(result["topic_mismatch"], 1)
+        self.assertEqual(result["imported"], 8)
+        self.assertEqual(
+            result["resources"][0]["status"],
+            "topic_mismatch",
+        )
+        ingest.assert_not_called() if result["imported"] == 0 else None
         self.assertEqual(ingest.call_count, 8)
 
     @patch("services.sample_resource_service.list_admin_course_topics")
