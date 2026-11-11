@@ -29,6 +29,11 @@ _THEME_CSS = """
     right: 1.5rem;
 }
 
+/* Remove Streamlit's workspace-only deploy control from the learner UI. */
+[data-testid="stAppDeployButton"] {
+    display: none !important;
+}
+
 .block-container {
     max-width: 1420px;
     padding: 2.1rem 2.8rem 3.5rem;
