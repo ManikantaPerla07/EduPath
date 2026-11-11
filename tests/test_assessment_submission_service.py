@@ -184,7 +184,30 @@ class AssessmentSubmissionServiceTests(unittest.TestCase):
         executed_sql = cursor.execute.call_args[0][0]
 
         self.assertIn("user_id = %s", executed_sql)
-        self.assertIn("FOR UPDATE", executed_sql)
+        self.assertIn("JOIN users AS u", executed_sql)
+        self.assertIn("u.is_active = TRUE", executed_sql)
+        self.assertIn("FOR UPDATE OF s, u", executed_sql)
+
+    def test_inactive_account_cannot_submit_existing_assessment(self):
+        connection, cursor = self.make_database_mock([None])
+        progress_refresh = MagicMock(return_value=[])
+
+        with self.assertRaisesRegex(
+            PermissionError,
+            "Assessment not found for this learner",
+        ):
+            self.call_service(
+                connection,
+                answers={},
+                progress_refresh=progress_refresh,
+            )
+
+        self.assertEqual(cursor.execute.call_count, 1)
+        query = cursor.execute.call_args.args[0]
+        self.assertIn("JOIN users AS u", query)
+        self.assertIn("u.is_active = TRUE", query)
+        self.assertIn("FOR UPDATE OF s, u", query)
+        progress_refresh.assert_not_called()
 
     def test_unknown_question_id_is_rejected(self):
         connection, cursor = self.make_database_mock(
