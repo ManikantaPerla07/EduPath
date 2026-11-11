@@ -639,6 +639,23 @@ def save_chat_feedback(
 
     with psycopg.connect(load_database_url()) as connection:
         with connection.cursor() as cursor:
+            # Keep feedback writes ordered with account deactivation.
+            cursor.execute(
+                """
+                SELECT user_id
+                FROM users
+                WHERE user_id = %s
+                  AND is_active = TRUE
+                FOR SHARE;
+                """,
+                (user_uuid,),
+            )
+
+            if cursor.fetchone() is None:
+                raise LookupError(
+                    "An active learner account is required."
+                )
+
             cursor.execute(
                 query,
                 (is_helpful, message_uuid, user_uuid),
