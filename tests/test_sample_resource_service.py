@@ -1,6 +1,7 @@
 """Tests for the repeatable Python sample-resource import workflow."""
 
 from hashlib import sha256
+from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
