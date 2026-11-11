@@ -198,8 +198,9 @@ def set_course_publication_status(
 ) -> dict[str, Any]:
     """Publish or unpublish a course after checking administrator access.
 
-    Publishing requires at least one topic, one active assessment question,
-    and one active ready document whose every chunk has a stored embedding.
+    Publishing requires every topic to have at least one non-archived,
+    ready, topic-specific resource whose every chunk has a stored embedding,
+    along with active assessment questions.
     """
 
     admin_id = _validate_user_id(user_id)
