@@ -514,3 +514,31 @@ Date: 2026-11-05
   are pending after the developer pulls this milestone.
 - Course publication controls, resource deletion/archival, and instructor
   analytics remain outside this implementation slice.
+
+## 2026-11-11 — Course Publication and Safe Resource Archival
+
+- Added migration `004_document_archival.sql` with nullable
+  `documents.archived_at` and an active-course index. Archival preserves
+  uploaded bytes, extracted chunks, embeddings and source metadata.
+- Added course publication services with active-administrator authorization.
+  Publishing requires at least one topic, at least one active assessment
+  question, and one ready, non-archived document whose chunks all have
+  embeddings.
+- Added administrator publication readiness metrics and publish/unpublish
+  controls to Knowledge Management.
+- Added archive and restore actions with explicit archival confirmation.
+  Archived resources are excluded from learner RAG retrieval and cannot be
+  embedded or retried until restored.
+- Archiving the last fully embedded active resource automatically unpublishes
+  an already-published course in the same database transaction.
+- Added learner access checks for application entry, assessment question
+  selection/session creation, topic progress, study-plan generation and
+  retrieval. Existing assessment submissions are not forcibly discarded.
+- Added tests for publication readiness, admin authorization, archive/restore,
+  automatic unpublishing, archived embedding rejection and published-course
+  access filters.
+- Local automated verification and application of migration 004 are pending
+  after the developer pulls this milestone.
+- Course publication readiness is a minimum technical gate. Administrators
+  must still review actual topic coverage and source rights before publication.
+- No external service or paid dependency was added.
