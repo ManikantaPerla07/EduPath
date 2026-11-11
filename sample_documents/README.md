@@ -2,7 +2,7 @@
 
 These are original beginner-level learning notes maintained in the EduPath repository. They are provided as starter material for the administrator Knowledge Management workflow.
 
-**Important:** Files in this folder are not automatically imported into Neon. An administrator must upload each file, associate it with the matching Python topic, generate every chunk embedding, and review the resource inventory.
+**Important:** Files in this folder are not imported into Neon at application startup. An administrator can use **Import missing sample resources** in Knowledge Management to import the original nine-note starter pack. The importer checks SHA-256 content hashes, preserves existing resources, and reports archived or incorrectly mapped duplicates. After import, an administrator must generate every missing chunk embedding and review the resource inventory.
 
 ## Topic-to-file mapping
 
@@ -31,12 +31,11 @@ For these repository-authored materials, use the following metadata in Knowledge
 
 1. Sign in with an active administrator account.
 2. Open **Knowledge Management** and select **Python Programming**.
-3. Upload one sample file and select its matching topic.
-4. Confirm its text chunks were created.
-5. Generate missing embeddings until every chunk is embedded.
-6. Confirm the topic changes to **Covered** in Topic Resource Coverage.
-7. Repeat for all nine topics.
-8. Review the source content, copyright/rights metadata, examples and exercises before publishing.
+3. Click **Import missing sample resources**. The action imports only files whose SHA-256 content hash is not already present in the course.
+4. Review the import summary. Resolve any archived or topic-mismatch entries in the resource inventory.
+5. Generate missing embeddings for each ready resource.
+6. Confirm all nine topics show **Covered** in Topic Resource Coverage and each imported resource has all chunks embedded.
+7. Review the source content, examples and exercises before publishing.
 
 The topic coverage check is a technical completeness signal: it confirms that at least one non-archived, ready, topic-specific resource has an embedding for every chunk. It does not automatically judge factual accuracy, pedagogical depth, accessibility or completeness. An administrator should review those qualities before publishing the course.
 
