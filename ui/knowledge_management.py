@@ -140,7 +140,7 @@ def _render_document_inventory(
                 if action_columns[0].button(
                     "Restore resource",
                     key=f"edupath_restore_document_{document_id}",
-                    use_container_width=True,
+                    width="stretch",
                 ):
                     try:
                         result = restore_course_document(
@@ -171,7 +171,7 @@ def _render_document_inventory(
                 elif action_columns[1].button(
                     "Archive resource",
                     key=f"edupath_archive_document_{document_id}",
-                    use_container_width=True,
+                    width="stretch",
                 ):
                     st.session_state[archive_confirmation_key] = True
 
@@ -231,7 +231,7 @@ def _render_document_inventory(
                 if action_columns[0].button(
                     "Retry extraction and chunking",
                     key=f"edupath_retry_document_{document_id}",
-                    use_container_width=True,
+                    width="stretch",
                 ):
                     try:
                         with st.spinner("Reprocessing the stored document..."):
@@ -269,7 +269,7 @@ def _render_document_inventory(
                 if action_columns[0].button(
                     "Generate missing embeddings",
                     key=f"edupath_embed_document_{document_id}",
-                    use_container_width=True,
+                    width="stretch",
                 ):
                     try:
                         with st.spinner(
@@ -544,7 +544,7 @@ def render_knowledge_management(learner: dict) -> None:
         submitted = st.form_submit_button(
             "Upload and extract text",
             type="primary",
-            use_container_width=True,
+            width="stretch",
         )
 
     if submitted:
