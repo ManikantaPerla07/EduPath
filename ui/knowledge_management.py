@@ -192,8 +192,8 @@ def _render_document_inventory(
 
             if document["processing_status"] == "ready":
                 st.caption(
-                    "The text is available to retrieval. Documents with "
-                    "pending embeddings are not yet fully searchable."
+                    "Text extraction is complete. Semantic retrieval can use "
+                    "only chunks whose embeddings have been stored."
                 )
 
 
