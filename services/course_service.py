@@ -40,18 +40,63 @@ def _require_active_admin(cursor, user_id: UUID) -> None:
         )
 
 
-def _publication_readiness(cursor, course_id: UUID) -> dict[str, int]:
-    """Count the minimum content prerequisites for publishing a course."""
+def _publication_readiness(cursor, course_id: UUID) -> dict[str, Any]:
+    """Measure topic-specific learning-resource coverage for publication.
+
+    A topic is covered only when it has at least one non-archived, ready
+    document assigned specifically to that topic and every stored chunk has
+    an embedding. Course-wide documents are counted in the overall resource
+    inventory but do not substitute for topic-specific coverage.
+    """
 
     cursor.execute(
         """
-        SELECT COUNT(*)::INTEGER
-        FROM topics
-        WHERE course_id = %s;
+        WITH document_chunk_stats AS (
+            SELECT
+                d.document_id,
+                d.topic_id,
+                COUNT(dc.chunk_id)::INTEGER AS chunk_count,
+                COUNT(dc.embedding)::INTEGER AS embedded_chunk_count
+            FROM documents AS d
+            LEFT JOIN document_chunks AS dc
+                ON dc.document_id = d.document_id
+            WHERE d.course_id = %s
+              AND d.archived_at IS NULL
+              AND d.processing_status = 'ready'
+            GROUP BY d.document_id, d.topic_id
+        )
+        SELECT
+            t.topic_slug,
+            t.topic_name,
+            COUNT(dcs.document_id) FILTER (
+                WHERE dcs.chunk_count > 0
+                  AND dcs.embedded_chunk_count = dcs.chunk_count
+            )::INTEGER AS fully_embedded_document_count,
+            COALESCE(SUM(dcs.chunk_count), 0)::INTEGER AS chunk_count,
+            COALESCE(SUM(dcs.embedded_chunk_count), 0)::INTEGER
+                AS embedded_chunk_count
+        FROM topics AS t
+        LEFT JOIN document_chunk_stats AS dcs
+            ON dcs.topic_id = t.topic_id
+        WHERE t.course_id = %s
+        GROUP BY t.topic_id, t.topic_slug, t.topic_name, t.sequence_number
+        ORDER BY t.sequence_number, t.topic_name;
         """,
-        (course_id,),
+        (course_id, course_id),
     )
-    topic_count = cursor.fetchone()[0]
+    topic_rows = cursor.fetchall()
+
+    topic_coverage = [
+        {
+            "topic_slug": row[0],
+            "topic_name": row[1],
+            "fully_embedded_document_count": row[2],
+            "chunk_count": row[3],
+            "embedded_chunk_count": row[4],
+            "is_covered": row[2] > 0,
+        }
+        for row in topic_rows
+    ]
 
     cursor.execute(
         """
@@ -86,12 +131,20 @@ def _publication_readiness(cursor, course_id: UUID) -> dict[str, int]:
     )
     fully_embedded_document_count = cursor.fetchone()[0]
 
+    uncovered_topics = [
+        topic["topic_slug"]
+        for topic in topic_coverage
+        if not topic["is_covered"]
+    ]
+
     return {
-        "topic_count": topic_count,
+        "topic_count": len(topic_coverage),
+        "covered_topic_count": len(topic_coverage) - len(uncovered_topics),
+        "uncovered_topics": uncovered_topics,
+        "topic_coverage": topic_coverage,
         "active_question_count": active_question_count,
         "fully_embedded_document_count": fully_embedded_document_count,
     }
-
 
 def get_admin_course_publication_status(
     user_id: str,
@@ -131,6 +184,7 @@ def get_admin_course_publication_status(
         **readiness,
         "ready_to_publish": (
             readiness["topic_count"] > 0
+            and readiness["covered_topic_count"] == readiness["topic_count"]
             and readiness["active_question_count"] > 0
             and readiness["fully_embedded_document_count"] > 0
         ),
@@ -182,6 +236,11 @@ def set_course_publication_status(
 
                 if readiness["topic_count"] < 1:
                     missing.append("at least one learning topic")
+                if readiness["uncovered_topics"]:
+                    missing.append(
+                        "topic-specific, fully embedded learning resources for "
+                        + ", ".join(readiness["uncovered_topics"])
+                    )
                 if readiness["active_question_count"] < 1:
                     missing.append("at least one active assessment question")
                 if readiness["fully_embedded_document_count"] < 1:
