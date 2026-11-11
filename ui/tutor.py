@@ -18,6 +18,7 @@ from services.chat_service import (
     get_chat_messages,
     list_chat_sessions,
     rename_chat_session,
+    save_chat_feedback,
     save_chat_message,
 )
 
@@ -95,7 +96,70 @@ def _render_citations(citations: list[dict]) -> None:
                 st.divider()
 
 
-def _render_saved_message(message: dict) -> None:
+def _render_message_feedback(
+    user_id: str,
+    message: dict,
+) -> None:
+    """Render and persist a learner rating for an assistant response."""
+
+    if message.get("role") != "assistant":
+        return
+
+    message_id = message.get("message_id")
+    if not isinstance(message_id, str) or not message_id:
+        return
+
+    feedback_key = f"edupath_tutor_feedback_{message_id}"
+    saved_rating = message.get("feedback")
+
+    # Restore the persisted rating when this message is first rendered
+    # in the current Streamlit session.
+    if (
+        feedback_key not in st.session_state
+        and isinstance(saved_rating, bool)
+    ):
+        st.session_state[feedback_key] = (
+            1 if saved_rating else 0
+        )
+
+    st.caption("Was this response helpful?")
+    selected_rating = st.feedback(
+        "thumbs",
+        key=feedback_key,
+    )
+
+    if selected_rating not in (0, 1):
+        return
+
+    is_helpful = selected_rating == 1
+
+    # Do not write the same rating on every Streamlit rerun.
+    if saved_rating is is_helpful:
+        return
+
+    try:
+        save_chat_feedback(
+            user_id=user_id,
+            message_id=message_id,
+            is_helpful=is_helpful,
+        )
+        message["feedback"] = is_helpful
+        st.caption("Thanks for your feedback.")
+
+    except (ValueError, LookupError, psycopg.Error):
+        logger.exception(
+            "Could not save AI Tutor feedback for message %s.",
+            message_id,
+        )
+        st.caption(
+            "We could not save your feedback. Please try again."
+        )
+
+
+def _render_saved_message(
+    message: dict,
+    user_id: str,
+) -> None:
     """Render a saved learner or assistant message."""
 
     role = message["role"]
@@ -105,6 +169,10 @@ def _render_saved_message(message: dict) -> None:
 
         if role == "assistant":
             _render_citations(message.get("citations") or [])
+            _render_message_feedback(
+                user_id=user_id,
+                message=message,
+            )
 
 
 def _load_sessions(user_id: str) -> list[dict]:
@@ -357,7 +425,10 @@ def _render_conversation_history(
         return
 
     for message in messages:
-        _render_saved_message(message)
+        _render_saved_message(
+            message=message,
+            user_id=user_id,
+        )
 
 
 def _process_question(
