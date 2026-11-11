@@ -561,51 +561,57 @@ def render_assessment(learner: dict) -> None:
     diagnostic_col, practice_col, revision_col = st.columns(3)
 
     with diagnostic_col:
-        st.subheader("Diagnostic")
-        st.caption(
-            "Check your current Python knowledge across all course topics."
-        )
-        st.info(
-            "Uses the full available question bank. "
-            "It does not adapt question selection to previous performance."
-        )
+        with st.container(border=True, key="edupath_diagnostic_card"):
+            st.subheader("Diagnostic")
+            st.caption(
+                "Check your current Python knowledge across all course topics."
+            )
+            st.info(
+                "Uses the full available question bank. "
+                "It does not adapt question selection to previous performance."
+            )
 
-        if st.button(
-            "Start diagnostic",
-            width="stretch",
-            type="primary",
-            key="edupath_start_diagnostic",
-        ):
-            _start_assessment(learner, "diagnostic")
+            st.button(
+                "Start diagnostic",
+                width="stretch",
+                type="primary",
+                key="edupath_start_diagnostic",
+                on_click=_start_assessment,
+                args=(learner, "diagnostic"),
+            )
 
     with practice_col:
-        st.subheader("Adaptive Practice")
-        st.caption(
-            "Practise using questions selected from your learning progress."
-        )
-        st.info(
-            "Five questions selected using topic mastery and recent attempts."
-        )
+        with st.container(border=True, key="edupath_adaptive_practice_card"):
+            st.subheader("Adaptive Practice")
+            st.caption(
+                "Practise using questions selected from your learning progress."
+            )
+            st.info(
+                "Five questions selected using topic mastery and recent attempts."
+            )
 
-        if st.button(
-            "Start practice",
-            width="stretch",
-            key="edupath_start_practice",
-        ):
-            _start_assessment(learner, "practice")
+            st.button(
+                "Start practice",
+                width="stretch",
+                key="edupath_start_practice",
+                on_click=_start_assessment,
+                args=(learner, "practice"),
+            )
 
     with revision_col:
-        st.subheader("Targeted Revision")
-        st.caption(
-            "Give additional attention to topics where you need improvement."
-        )
-        st.info(
-            "Prioritizes weaker topics and adapts question difficulty."
-        )
+        with st.container(border=True, key="edupath_targeted_revision_card"):
+            st.subheader("Targeted Revision")
+            st.caption(
+                "Give additional attention to topics where you need improvement."
+            )
+            st.info(
+                "Prioritizes weaker topics and adapts question difficulty."
+            )
 
-        if st.button(
-            "Start revision",
-            width="stretch",
-            key="edupath_start_revision",
-        ):
-            _start_assessment(learner, "revision")
+            st.button(
+                "Start revision",
+                width="stretch",
+                key="edupath_start_revision",
+                on_click=_start_assessment,
+                args=(learner, "revision"),
+            )
