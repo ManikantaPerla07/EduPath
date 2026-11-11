@@ -23,7 +23,7 @@ from services.langchain_retriever import retrieve_course_chunks
 GENERATION_MODEL = "gemini-3.8-flash"
 FALLBACK_GENERATION_MODEL = "gemini-3.5-flash-lite"
 
-# Only temporary server errors trigger a model fallback.
+# Transient server responses and HTTP transport failures trigger fallback.
 RETRYABLE_SERVER_ERRORS = RETRYABLE_GEMINI_STATUS_CODES
 
 MAX_CONTEXT_SOURCES = 5
@@ -259,8 +259,8 @@ def _generate_with_fallback(
     """
     Generate a response using the primary model.
 
-    If the primary model encounters a temporary server-side error,
-    retry using the configured fallback model.
+    If the primary model encounters a temporary server response or
+    recognized HTTP transport interruption, use the fallback model.
 
     Returns:
         A tuple containing the Gemini response and the model name used.
@@ -313,7 +313,7 @@ def _generate_with_langchain_fallback(
     """
     Generate a grounded response through LangChain and Gemini.
 
-    Retry with the fallback model only for temporary server errors.
+    Retry with the fallback model only for temporary server or transport failures.
     """
 
     models_to_try = (
