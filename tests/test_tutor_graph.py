@@ -3,6 +3,8 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from langchain_core.messages import AIMessage
+
 from agents.tutor_graph import build_tutor_graph, run_tutor_graph
 
 
@@ -468,6 +470,8 @@ class TestTutorGraph(unittest.TestCase):
         build_graph.assert_called_once_with(
             client=None,
             checkpointer=checkpointer,
+            enable_tools=True,
+            tool_model=None,
         )
         graph.invoke.assert_called_once_with(
             {
@@ -497,6 +501,247 @@ class TestTutorGraph(unittest.TestCase):
             )
 
         get_session.assert_not_called()
+
+
+class FakeLearnerToolModel:
+
+    def __init__(self, response):
+        self.response = response
+        self.bound_tools = []
+        self.invocation_messages = None
+
+    def bind_tools(self, tools):
+        self.bound_tools = tools
+        return self
+
+    def invoke(self, messages):
+        self.invocation_messages = messages
+        return self.response
+
+
+class LearnerToolGraphTests(unittest.TestCase):
+
+    USER_ID = "ea181992-f802-4528-ae24-10b7e198d8a2"
+
+    def _graph_input(self, question):
+        return {
+            "question": question,
+            "course_slug": "python-basics",
+            "topic_slug": None,
+            "limit": 5,
+            "conversation_history": [],
+            "user_id": self.USER_ID,
+        }
+
+    def test_no_tool_call_keeps_existing_rag_path(self):
+        tool_model = FakeLearnerToolModel(
+            AIMessage(content="No learner records are needed.")
+        )
+        chunks = [
+            {
+                "chunk_id": "chunk-1",
+                "content": "Python variables store values.",
+            }
+        ]
+        expected = {
+            "answer": "A variable stores a value. [S1]",
+            "insufficient_evidence": False,
+            "citations": [{"source_id": "S1"}],
+            "retrieved_count": 1,
+            "model": "test-model",
+            "reason": None,
+        }
+
+        with (
+            patch(
+                "agents.tutor_graph.resolve_contextual_question",
+                side_effect=lambda question, conversation_history, client:
+                    question,
+            ),
+            patch(
+                "agents.tutor_graph.retrieve_course_chunks",
+                return_value=chunks,
+            ) as retrieve,
+            patch(
+                "agents.tutor_graph.get_learner_teaching_profile",
+                return_value=None,
+            ),
+            patch(
+                "agents.tutor_graph.generate_grounded_answer",
+                return_value=expected,
+            ) as generate,
+        ):
+            graph = build_tutor_graph(
+                enable_tools=True,
+                tool_model=tool_model,
+            )
+            state = graph.invoke(
+                self._graph_input("What is a Python variable?")
+            )
+
+        self.assertEqual(state["answer_result"], expected)
+        retrieve.assert_called_once()
+        generate.assert_called_once_with(
+            question="What is a Python variable?",
+            retrieved_chunks=chunks,
+            client=None,
+        )
+        self.assertEqual(
+            {tool.name for tool in tool_model.bound_tools},
+            {"get_my_learning_progress", "get_my_study_plan"},
+        )
+        self.assertEqual(tool_model.invocation_messages[-1].content, "What is a Python variable?")
+
+    @patch("agents.learner_tools.fetch_learner_topic_progress")
+    @patch("agents.tutor_graph.resolve_contextual_question")
+    @patch("agents.tutor_graph.retrieve_course_chunks", return_value=[])
+    @patch("agents.tutor_graph.generate_grounded_answer")
+    def test_model_selected_progress_tool_uses_authenticated_state(
+        self,
+        generate,
+        retrieve,
+        resolve,
+        fetch_progress,
+    ):
+        tool_model = FakeLearnerToolModel(
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "get_my_learning_progress",
+                        "args": {},
+                        "id": "progress_call_1",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+        )
+        fetch_progress.return_value = [
+            {
+                "topic_slug": "variables-data-types",
+                "topic_name": "Variables and Data Types",
+                "total_attempts": 5,
+                "correct_answers": 4,
+                "accuracy_percent": 80,
+                "mastery_score": 80,
+                "mastery_status": "candidate_for_mastery",
+                "last_attempted_at": None,
+            }
+        ]
+        expected = {
+            "answer": "You have 80% accuracy in Variables and Data Types.",
+            "insufficient_evidence": False,
+            "citations": [],
+            "retrieved_count": 0,
+            "model": "test-model",
+            "reason": None,
+            "learner_context_used": True,
+        }
+        generate.return_value = expected
+        resolve.side_effect = (
+            lambda question, conversation_history, client: question
+        )
+
+        graph = build_tutor_graph(
+            enable_tools=True,
+            tool_model=tool_model,
+        )
+        state = graph.invoke(
+            self._graph_input("How am I doing in Variables and Data Types?")
+        )
+
+        self.assertEqual(state["answer_result"], expected)
+        fetch_progress.assert_called_once_with(
+            user_id=self.USER_ID,
+            course_slug="python-basics",
+        )
+        retrieve.assert_called_once()
+        generate.assert_called_once()
+        generation_arguments = generate.call_args.kwargs
+        self.assertEqual(generation_arguments["retrieved_chunks"], [])
+        self.assertEqual(
+            generation_arguments["learner_context"]["get_my_learning_progress"]["topics"][0]["accuracy_percent"],
+            80,
+        )
+        self.assertEqual(
+            generation_arguments["learner_context"]["get_my_learning_progress"]["topics"][0]["mastery_status"],
+            "candidate_for_mastery",
+        )
+
+    @patch("agents.learner_tools.fetch_active_study_plan")
+    @patch("agents.tutor_graph.resolve_contextual_question")
+    @patch("agents.tutor_graph.retrieve_course_chunks", return_value=[])
+    @patch("agents.tutor_graph.generate_grounded_answer")
+    def test_model_selected_study_plan_tool_returns_plan_data(
+        self,
+        generate,
+        retrieve,
+        resolve,
+        fetch_plan,
+    ):
+        tool_model = FakeLearnerToolModel(
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "get_my_study_plan",
+                        "args": {},
+                        "id": "plan_call_1",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+        )
+        fetch_plan.return_value = {
+            "title": "Python Foundations",
+            "status": "active",
+            "start_date": "2026-11-10",
+            "end_date": "2026-11-19",
+            "items": [
+                {
+                    "topic_name": "Variables and Data Types",
+                    "topic_slug": "variables-data-types",
+                    "activity_type": "revision",
+                    "scheduled_date": "2026-11-11",
+                    "estimated_minutes": 20,
+                    "status": "pending",
+                    "recommendation_reason": "Revisit the fundamentals.",
+                }
+            ],
+        }
+        generate.return_value = {
+            "answer": "Your revision activity is scheduled for November 11.",
+            "insufficient_evidence": False,
+            "citations": [],
+            "retrieved_count": 0,
+            "model": "test-model",
+            "reason": None,
+        }
+        resolve.side_effect = (
+            lambda question, conversation_history, client: question
+        )
+
+        graph = build_tutor_graph(
+            enable_tools=True,
+            tool_model=tool_model,
+        )
+        state = graph.invoke(self._graph_input("What is in my study plan?"))
+
+        fetch_plan.assert_called_once_with(
+            user_id=self.USER_ID,
+            course_slug="python-basics",
+        )
+        generate.assert_called_once()
+        plan_context = generate.call_args.kwargs["learner_context"]
+        self.assertEqual(
+            plan_context["get_my_study_plan"]["title"],
+            "Python Foundations",
+        )
+        self.assertEqual(
+            plan_context["get_my_study_plan"]["activity_counts"]["pending"],
+            1,
+        )
+        self.assertFalse(state["answer_result"]["insufficient_evidence"])
 
 
 if __name__ == "__main__":
