@@ -194,7 +194,7 @@ class AgentTelemetryInsightsDatabaseTests(unittest.TestCase):
         mock_connect.return_value = connection
         cursor.fetchone.side_effect = [
             ("admin",),
-            (0, 0, 0, 0, 0, None),
+            (0, 0, 0, 0, 0, 0, None),
         ]
         cursor.fetchall.return_value = []
 
