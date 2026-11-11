@@ -16,6 +16,9 @@ from services.document_service import (
     restore_course_document,
     retry_document_processing,
 )
+from services.sample_resource_service import (
+    import_sample_python_resources,
+)
 from services.course_service import (
     get_admin_course_publication_status,
     set_course_publication_status,
@@ -371,6 +374,50 @@ def render_knowledge_management(learner: dict) -> None:
         "resource with all embeddings stored, as well as active assessment "
         "questions."
     )
+
+    if course_slug == "python-basics":
+        with st.container(border=True, key="edupath_sample_resource_pack"):
+            st.subheader("Python starter resource pack")
+            st.caption(
+                "Import the nine original EduPath notes and map each one to "
+                "its matching topic. Existing files are detected by content "
+                "hash, so repeating this action will not create duplicates. "
+                "Embedding generation is a separate step."
+            )
+            if st.button(
+                "Import missing sample resources",
+                key="edupath_import_sample_resources",
+                width="stretch",
+            ):
+                try:
+                    with st.spinner(
+                        "Checking and importing the original Python resources..."
+                    ):
+                        import_result = import_sample_python_resources(
+                            user_id=user_id,
+                            course_slug=course_slug,
+                        )
+
+                    st.session_state["edupath_knowledge_notice"] = (
+                        "Starter resource import finished: "
+                        f"{import_result['imported']} imported, "
+                        f"{import_result['already_present']} already present, "
+                        f"{import_result['archived']} archived, "
+                        f"{import_result['topic_mismatch']} topic mismatches, "
+                        f"{import_result['failed']} failed. "
+                        "Generate missing embeddings for each imported resource."
+                    )
+                    st.rerun()
+                except (ValueError, LookupError, PermissionError) as exc:
+                    st.error(str(exc))
+                except Exception:
+                    logger.exception(
+                        "Unable to import the original Python sample resources."
+                    )
+                    st.error(
+                        "The sample resources could not be imported. "
+                        "Check the application log and try again."
+                    )
     readiness_columns = st.columns(4)
     readiness_columns[0].metric("Topics", publication["topic_count"])
     readiness_columns[1].metric(
