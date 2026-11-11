@@ -359,7 +359,7 @@ def generate_study_plan(
                   AND u.is_active = TRUE
                   AND lp.adult_confirmation = TRUE
                   AND c.is_published = TRUE
-                FOR UPDATE OF lp;
+                FOR UPDATE OF lp, c;
                 """,
                 (course_slug, learner_id),
             )
