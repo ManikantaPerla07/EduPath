@@ -22,26 +22,38 @@ _THEME_CSS = """
 }
 
 [data-testid="stHeader"] {
-    background: rgba(245, 247, 251, 0.88);
+    height: 2.75rem;
+    min-height: 2.75rem;
+    background: rgba(245, 247, 251, 0.98);
     box-shadow: none !important;
+    z-index: 100;
 }
 
-/* Hide Streamlit's menu, deploy and transient run-status controls. Keep the
-   header shell itself so Streamlit can still expose its sidebar collapse
-   control when the viewport is narrow. */
-#MainMenu,
+/* Streamlit's toolbar is positioned over the app canvas. Hide its menu,
+   deploy and status controls so they cannot collide with page headings.
+   Keep the sidebar collapse controls available on narrow screens. */
+[data-testid="stToolbar"],
+[data-testid="stHeaderActionElements"],
 [data-testid="stMainMenu"],
 [data-testid="stAppDeployButton"],
 [data-testid="stStatusWidget"],
-[data-testid="stDecoration"] {
+[data-testid="stDecoration"],
+#MainMenu {
     display: none !important;
     visibility: hidden !important;
     pointer-events: none !important;
 }
 
+[data-testid="stHeader"] [data-testid="stSidebarCollapseButton"],
+[data-testid="stHeader"] [data-testid="stSidebarCollapsedControl"] {
+    display: flex !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+}
+
 .block-container {
     max-width: 1420px;
-    padding: 2.1rem 2.8rem 3.5rem;
+    padding: 3.5rem 2.8rem 3.5rem;
 }
 
 h1, h2, h3, h4 {
