@@ -13,6 +13,7 @@ EduPath is an AI-powered learning platform for beginner Python programming. It c
 - **Personalized study plan:** schedules learning, practice, revision, and spaced-review activities based on assessment evidence, prerequisites, learning goals, and available study time.
 - **Persistent conversations and plans:** stores learner chat history, study-plan activity status, and per-chat LangGraph checkpoints in Neon. Deleting a conversation also deletes its checkpoint state.
 - **Administrator Knowledge Management:** active administrators can upload PDF, TXT and Markdown resources, associate them with course topics, inspect extraction/chunk/embedding status, retry failed extraction, generate missing embeddings, and review topic-by-topic coverage. Publishing requires every course topic to have at least one non-archived, ready, topic-specific resource with all chunk embeddings stored.
+- **AI Tutor Feedback Insights:** active administrators can view course-level answer and rating counts, feedback coverage, helpful-rating share, and a 14-day trend. The report is aggregate-only and does not expose learner identities or private conversation text.
 
 ## Technology stack
 
@@ -74,10 +75,12 @@ EduPath/
 │   ├── langchain_document_processing.py # Page-aware LangChain loader/splitter
 │   ├── langchain_embeddings.py          # Gemini Embedding 2 adapter
 │   ├── langchain_retriever.py           # Neon pgvector retriever adapter
+│   ├── tutor_feedback_service.py        # Admin-only aggregate Tutor feedback insights
 │   └── ...                              # Application and domain services
 ├── tests/                  # Automated tests
 ├── ui/                     # Streamlit learner and administrator interfaces
 │   ├── knowledge_management.py # Admin-only resource upload and processing status
+│   └── tutor_feedback.py      # Admin-only aggregate feedback insights
 ├── .streamlit/
 │   ├── config.toml
 │   └── secrets.toml.example
@@ -227,7 +230,7 @@ python -m compileall -q agents services ui tests
 git diff --check
 ```
 
-The latest user-verified full-suite result before the assistant-feedback milestone was **459 passed, 49 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
+The latest user-verified full-suite result before the Tutor feedback insights milestone was **469 passed, 53 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
 
 ## Deploy to Streamlit Community Cloud
 
