@@ -171,14 +171,11 @@ def load_authenticated_learner():
         return learner
 
     except GoogleSessionExpired:
-        st.warning(
-            "Your Google sign-in session has expired. "
-            "Please sign in again."
-        )
-        st.button(
-            "Sign out and sign in again",
-            on_click=logout_user,
-        )
+        # Streamlit keeps its identity cookie until st.logout() is called.
+        # Clear learner-specific state and return directly to the branded
+        # sign-in screen instead of leaving the user on a blocked page.
+        clear_edupath_session()
+        st.logout()
         st.stop()
 
     except PermissionError as error:
@@ -389,60 +386,13 @@ def render_learning_progress(learner):
             )
 
 
-def home_screen(learner):
-    """Display the learner dashboard and role-aware application navigation."""
 
-    learner_name = learner.get("display_name") or "Learner"
-
-    st.sidebar.markdown(
-        """
-        <div class="edupath-sidebar-brand">
-            <div class="edupath-brand-mark">E</div>
-            <div>
-                <div class="edupath-sidebar-name">EduPath</div>
-                <div class="edupath-sidebar-subtitle">Personal learning space</div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.sidebar.divider()
-
-    navigation_options = [
-        "Dashboard",
-        "AI Tutor",
-        "Python Assessment",
-        "Study Plan",
-    ]
-
-    if learner.get("role") == "admin":
-        navigation_options.extend(
-            [
-                "Knowledge Management",
-                "AI Tutor Feedback",
-                "AI Tutor Operations",
-            ]
-        )
-
-    selected_page = st.sidebar.radio(
-        "Workspace",
-        options=navigation_options,
-        key="edupath_navigation",
-    )
-
-    st.sidebar.divider()
-
-    if learner.get("email"):
-        st.sidebar.caption(f"Signed in as {learner['email']}")
-
-    role_label = "Administrator" if learner.get("role") == "admin" else "Learner"
-    st.sidebar.caption(f"Account type · {role_label}")
-
-    st.sidebar.button(
-        "Sign out",
-        on_click=logout_user,
-        use_container_width=True,
-    )
+def render_workspace_content(
+    learner: dict,
+    selected_page: str,
+    learner_name: str,
+) -> None:
+    """Render one workspace page inside the shared page-content slot."""
 
     if selected_page == "AI Tutor":
         render_tutor(learner)
@@ -551,6 +501,86 @@ def home_screen(learner):
             f"{learner['explanation_style'].replace('_', ' ').title()}"
         )
 
+
+
+def home_screen(learner):
+    """Display the learner dashboard and role-aware application navigation."""
+
+    learner_name = learner.get("display_name") or "Learner"
+
+    st.sidebar.markdown(
+        """
+        <div class="edupath-sidebar-brand">
+            <div class="edupath-brand-mark">E</div>
+            <div>
+                <div class="edupath-sidebar-name">EduPath</div>
+                <div class="edupath-sidebar-subtitle">Personal learning space</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.sidebar.divider()
+
+    navigation_options = [
+        "Dashboard",
+        "AI Tutor",
+        "Python Assessment",
+        "Study Plan",
+    ]
+
+    if learner.get("role") == "admin":
+        navigation_options.extend(
+            [
+                "Knowledge Management",
+                "AI Tutor Feedback",
+                "AI Tutor Operations",
+            ]
+        )
+
+    selected_page = st.sidebar.radio(
+        "Workspace",
+        options=navigation_options,
+        key="edupath_navigation",
+    )
+
+    st.sidebar.divider()
+
+    if learner.get("email"):
+        st.sidebar.caption(f"Signed in as {learner['email']}")
+
+    role_label = "Administrator" if learner.get("role") == "admin" else "Learner"
+    st.sidebar.caption(f"Account type · {role_label}")
+
+    st.sidebar.button(
+        "Sign out",
+        on_click=logout_user,
+        use_container_width=True,
+    )
+
+    previous_page = st.session_state.get("edupath_last_navigation")
+    navigation_changed = previous_page != selected_page
+    st.session_state["edupath_last_navigation"] = selected_page
+
+    # All workspace pages share one placeholder. Clear it before rendering so
+    # slow database calls cannot leave the previous page visible underneath.
+    page_container = st.empty()
+    page_container.empty()
+
+    with page_container.container():
+        if navigation_changed:
+            with st.spinner(f"Opening {selected_page}..."):
+                render_workspace_content(
+                    learner=learner,
+                    selected_page=selected_page,
+                    learner_name=learner_name,
+                )
+        else:
+            render_workspace_content(
+                learner=learner,
+                selected_page=selected_page,
+                learner_name=learner_name,
+            )
 
 # ---------------------------------------------------------
 # Main application flow
