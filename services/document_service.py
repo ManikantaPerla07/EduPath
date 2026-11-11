@@ -184,6 +184,7 @@ def list_course_documents(
                 GROUP BY
                     d.document_id,
                     d.file_name,
+                    d.file_sha256,
                     d.file_type,
                     d.file_size_bytes,
                     d.source_title,
