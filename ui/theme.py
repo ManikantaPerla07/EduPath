@@ -600,7 +600,7 @@ hr {
    is narrow; this keeps dense admin layouts usable in a half-width browser. */
 @media (max-width: 1100px) {
     .block-container {
-        padding: 1.45rem 1.2rem 2.5rem;
+        padding: 3.25rem 1.2rem 2.5rem;
     }
 
     [data-testid="stHorizontalBlock"] {
@@ -630,7 +630,7 @@ hr {
 
 @media (max-width: 640px) {
     .block-container {
-        padding: 1rem 0.8rem 2rem;
+        padding: 3rem 0.8rem 2rem;
     }
 
     .edupath-page-header {
