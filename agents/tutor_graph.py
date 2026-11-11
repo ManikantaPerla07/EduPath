@@ -103,8 +103,14 @@ def _validate_input(state: TutorGraphState) -> dict[str, Any]:
     }
 
 
-def build_tutor_graph(client: Any | None = None):
-    """Build and compile the adaptive tutoring workflow."""
+def build_tutor_graph(
+    client: Any | None = None,
+    checkpointer: Any | None = None,
+):
+    """Build and compile the adaptive tutoring workflow.
+
+    An optional checkpointer persists state for one learner chat thread.
+    """
 
     def validate_input_node(
         state: TutorGraphState,
