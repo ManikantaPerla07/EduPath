@@ -779,3 +779,34 @@ Date: 2026-11-11
   77 subtests passed on November 11, 2026.
 - The nine sample learning resources remain unuploaded. Final RAG ingestion
   and live retrieval evaluation remain deferred to the final integration phase.
+
+## Reliability refinement: prevent deleting a conversation during an active Tutor run
+
+Date: 2026-11-11
+
+### Completed
+- Extended the existing learner-owned conversation deletion transaction to
+  check the session's Tutor run reservations before removing checkpoints.
+- Conversation deletion and persistent Tutor run reservation both lock the
+  same owned `chat_sessions` row. A deletion therefore waits for an
+  in-progress reservation transaction and then sees the committed active
+  run, while a run starting after deletion must re-check the session and
+  cannot reserve a deleted conversation.
+- Deletion is rejected with a dedicated `ChatSessionBusyError` while a
+  running record is within the existing 30-minute active-run lease.
+- Expired running reservations are marked `stopped` before deletion, keeping
+  run telemetry from retaining an orphaned active status.
+- The Tutor UI displays a warning and leaves the conversation and its
+  LangGraph checkpoints intact when a live run is detected.
+- Added service and UI regression tests for active-run rejection, expired-run
+  cleanup, successful deletion, and checkpoint-cleanup failure.
+- Reused the existing `agent_runs` table and 30-minute lease. No migration,
+  dependency, background worker, or paid service is required.
+
+### Verification status
+- Local focused and full-suite verification is pending after the developer
+  pulls this change.
+- The latest user-verified baseline before this change was 525 passed and
+  77 subtests passed on November 11, 2026.
+- The nine sample learning resources remain unuploaded. Final RAG ingestion
+  and live retrieval evaluation remain deferred to the final integration phase.
