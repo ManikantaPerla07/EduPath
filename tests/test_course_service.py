@@ -14,6 +14,32 @@ from services.course_service import (
 ADMIN_ID = "11111111-1111-4111-8111-111111111111"
 COURSE_ID = UUID("22222222-2222-4222-8222-222222222222")
 
+TOPIC_SLUGS = [
+    "variables-data-types",
+    "operators",
+    "conditionals",
+    "loops",
+    "functions",
+    "lists-tuples",
+    "dictionaries-sets",
+    "strings",
+    "problem-solving",
+]
+
+
+def make_topic_coverage(uncovered=()):
+    uncovered = set(uncovered)
+    return [
+        (
+            slug,
+            slug.replace("-", " ").title(),
+            0 if slug in uncovered else 1,
+            0 if slug in uncovered else 4,
+            0 if slug in uncovered else 4,
+        )
+        for slug in TOPIC_SLUGS
+    ]
+
 
 def make_connection(cursor):
     connection = MagicMock()
@@ -35,10 +61,10 @@ class CoursePublicationServiceTests(unittest.TestCase):
         cursor.fetchone.side_effect = [
             ("admin",),
             (COURSE_ID, "Python Programming", False),
-            (9,),
             (27,),
             (2,),
         ]
+        cursor.fetchall.return_value = make_topic_coverage()
         connection = make_connection(cursor)
 
         with (
@@ -57,6 +83,9 @@ class CoursePublicationServiceTests(unittest.TestCase):
             )
 
         self.assertEqual(result["topic_count"], 9)
+        self.assertEqual(result["covered_topic_count"], 9)
+        self.assertEqual(result["uncovered_topics"], [])
+        self.assertEqual(len(result["topic_coverage"]), 9)
         self.assertEqual(result["active_question_count"], 27)
         self.assertEqual(result["fully_embedded_document_count"], 2)
         self.assertTrue(result["ready_to_publish"])
@@ -90,10 +119,12 @@ class CoursePublicationServiceTests(unittest.TestCase):
         cursor.fetchone.side_effect = [
             ("admin",),
             (COURSE_ID, False),
-            (9,),
             (27,),
             (0,),
         ]
+        cursor.fetchall.return_value = make_topic_coverage(
+            uncovered=TOPIC_SLUGS
+        )
         connection = make_connection(cursor)
 
         with (
@@ -108,7 +139,7 @@ class CoursePublicationServiceTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(
                 ValueError,
-                "fully embedded active learning resource",
+                "topic-specific, fully embedded learning resources",
             ):
                 set_course_publication_status(
                     ADMIN_ID,
@@ -128,11 +159,11 @@ class CoursePublicationServiceTests(unittest.TestCase):
         cursor.fetchone.side_effect = [
             ("admin",),
             (COURSE_ID, False),
-            (9,),
             (27,),
-            (1,),
+            (9,),
             (True,),
         ]
+        cursor.fetchall.return_value = make_topic_coverage()
         connection = make_connection(cursor)
 
         with (
@@ -160,6 +191,49 @@ class CoursePublicationServiceTests(unittest.TestCase):
         ]
         self.assertEqual(len(update_calls), 1)
         self.assertEqual(update_calls[0][1], (True, COURSE_ID))
+
+    def test_publication_reports_topics_with_missing_specific_resources(self):
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = [
+            ("admin",),
+            (COURSE_ID, "Python Programming", False),
+            (27,),
+            (9,),
+        ]
+        cursor.fetchall.return_value = make_topic_coverage(
+            uncovered={"loops", "strings"}
+        )
+        connection = make_connection(cursor)
+
+        with (
+            patch(
+                "services.course_service.load_database_url",
+                return_value="postgresql://test",
+            ),
+            patch(
+                "services.course_service.psycopg.connect",
+                return_value=connection,
+            ),
+        ):
+            result = get_admin_course_publication_status(
+                ADMIN_ID,
+                "python-basics",
+            )
+
+        self.assertEqual(result["covered_topic_count"], 7)
+        self.assertEqual(
+            result["uncovered_topics"],
+            ["loops", "strings"],
+        )
+        self.assertFalse(result["ready_to_publish"])
+        self.assertEqual(
+            [
+                row["topic_slug"]
+                for row in result["topic_coverage"]
+                if not row["is_covered"]
+            ],
+            ["loops", "strings"],
+        )
 
     def test_admin_can_unpublish_without_content_readiness(self):
         cursor = MagicMock()
