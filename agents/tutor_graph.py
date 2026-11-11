@@ -203,7 +203,11 @@ def build_tutor_graph(
     ) -> dict[str, Any]:
         """Let Gemini select zero or more authenticated learner-data tools."""
 
-        decision_model = tool_model or _build_learner_tool_model()
+        decision_model = (
+            tool_model
+            if tool_model is not None
+            else _build_learner_tool_model()
+        )
         model_with_tools = decision_model.bind_tools(LEARNER_DATA_TOOLS)
 
         decision = model_with_tools.invoke(
@@ -214,7 +218,9 @@ def build_tutor_graph(
         )
 
         if not isinstance(decision, AIMessage):
-            raise RuntimeError("The learner tool router returned an invalid message.")
+            raise RuntimeError(
+                "The learner tool router returned an invalid message."
+            )
 
         # Checkpoint only the current turn's tool exchange. The authoritative
         # transcript continues to live in chat_messages.
@@ -403,6 +409,7 @@ def build_tutor_graph(
         route_after_retrieval,
         {
             "adapt_teaching": "adapt_teaching",
+            "generate_answer": "generate_answer",
             "abstain": "abstain",
         },
     )
