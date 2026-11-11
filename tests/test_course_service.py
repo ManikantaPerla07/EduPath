@@ -125,10 +125,10 @@ class CoursePublicationServiceTests(unittest.TestCase):
             ("admin",),
             (COURSE_ID, False),
             (27,),
-            (0,),
+            (7,),
         ]
         cursor.fetchall.return_value = make_topic_coverage(
-            uncovered=TOPIC_SLUGS
+            uncovered={"loops", "strings"}
         )
         connection = make_connection(cursor)
 
