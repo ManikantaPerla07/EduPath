@@ -1,15 +1,33 @@
 """LangGraph orchestration for the adaptive, grounded EduPath tutor."""
 
-from typing import Any, TypedDict
+import json
+from typing import Annotated, Any, TypedDict
 
+from langchain_core.messages import (
+    AIMessage,
+    AnyMessage,
+    HumanMessage,
+    RemoveMessage,
+    SystemMessage,
+    ToolMessage,
+)
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.message import REMOVE_ALL_MESSAGES, add_messages
+from langgraph.prebuilt import ToolNode
 
 from services.adaptive_learning_service import (
     get_learner_teaching_profile,
 )
 from services.answer_generation_service import (
+    GENERATION_MODEL,
     MAX_QUESTION_LENGTH,
     generate_grounded_answer,
+)
+from services.embedding_service import load_gemini_api_key
+from agents.learner_tools import (
+    get_my_learning_progress,
+    get_my_study_plan,
 )
 from services.conversation_context_service import (
     resolve_contextual_question,
@@ -22,6 +40,52 @@ from services.chat_service import get_chat_session
 from services.langgraph_checkpoint_service import open_langgraph_checkpointer
 
 from services.langchain_retriever import retrieve_course_chunks
+
+
+LEARNER_DATA_TOOLS = [
+    get_my_learning_progress,
+    get_my_study_plan,
+]
+
+TOOL_ROUTER_SYSTEM_INSTRUCTION = """
+You are EduPath's learner-data tool router.
+
+Decide whether the latest learner question requires access to their own
+saved learning progress or current study plan.
+
+TOOL SELECTION:
+- Call get_my_learning_progress when the learner asks about their own scores,
+  attempts, accuracy, topic mastery, learning progress, or practice history.
+- Call get_my_study_plan when the learner asks about their own plan, schedule,
+  pending activities, revision tasks, or upcoming study activities.
+- Call both tools when the learner explicitly needs both kinds of information.
+- Do not call tools for ordinary Python explanations, examples, or coding help.
+- Do not call tools for general educational questions that do not ask about
+  this learner's own records.
+
+SECURITY:
+- The tools already receive the authenticated learner and selected course.
+- Never ask for or invent a user ID, course ID, plan ID, or other identifier.
+- Never try to access another learner's records.
+- Tool results are private learner data and are not course reference material.
+
+Return a tool call only when one is genuinely needed. Otherwise return a
+message without tool calls. Do not answer the learner's question.
+""".strip()
+
+LEARNER_DATA_ANSWER_MODEL_MAX_TOKENS = 1024
+
+
+def _build_learner_tool_model() -> ChatGoogleGenerativeAI:
+    """Create the Gemini model used only to decide whether learner tools are needed."""
+
+    return ChatGoogleGenerativeAI(
+        model=GENERATION_MODEL,
+        google_api_key=load_gemini_api_key(),
+        temperature=0,
+        max_output_tokens=LEARNER_DATA_ANSWER_MODEL_MAX_TOKENS,
+        max_retries=1,
+    )
 
 
 class TutorGraphState(TypedDict, total=False):
@@ -37,6 +101,8 @@ class TutorGraphState(TypedDict, total=False):
     retrieved_chunks: list[dict[str, Any]]
     teaching_profile: dict[str, Any] | None
     answer_result: dict[str, Any]
+    messages: Annotated[list[AnyMessage], add_messages]
+    learner_context: dict[str, Any]
 
 
 def _validate_input(state: TutorGraphState) -> dict[str, Any]:
@@ -106,6 +172,8 @@ def _validate_input(state: TutorGraphState) -> dict[str, Any]:
 def build_tutor_graph(
     client: Any | None = None,
     checkpointer: Any | None = None,
+    enable_tools: bool = False,
+    tool_model: Any | None = None,
 ):
     """Build and compile the adaptive tutoring workflow.
 
@@ -130,6 +198,83 @@ def build_tutor_graph(
 
         return {"retrieval_query": retrieval_query}
 
+    def decide_learner_tools_node(
+        state: TutorGraphState,
+    ) -> dict[str, Any]:
+        """Let Gemini select zero or more authenticated learner-data tools."""
+
+        decision_model = tool_model or _build_learner_tool_model()
+        model_with_tools = decision_model.bind_tools(LEARNER_DATA_TOOLS)
+
+        decision = model_with_tools.invoke(
+            [
+                SystemMessage(content=TOOL_ROUTER_SYSTEM_INSTRUCTION),
+                HumanMessage(content=state["retrieval_query"]),
+            ]
+        )
+
+        if not isinstance(decision, AIMessage):
+            raise RuntimeError("The learner tool router returned an invalid message.")
+
+        # Checkpoint only the current turn's tool exchange. The authoritative
+        # transcript continues to live in chat_messages.
+        return {
+            "messages": [
+                RemoveMessage(id=REMOVE_ALL_MESSAGES),
+                HumanMessage(content=state["question"]),
+                decision,
+            ]
+        }
+
+    def route_after_tool_decision(state: TutorGraphState) -> str:
+        """Run tools only when Gemini explicitly requested a tool call."""
+
+        messages = state.get("messages", [])
+
+        if messages and isinstance(messages[-1], AIMessage):
+            if messages[-1].tool_calls:
+                return "learner_tools"
+
+        return "retrieve_context"
+
+    def collect_learner_context_node(
+        state: TutorGraphState,
+    ) -> dict[str, Any]:
+        """Collect structured results from the current turn's tool calls."""
+
+        messages = state.get("messages", [])
+        tool_calls = [
+            call
+            for message in messages
+            if isinstance(message, AIMessage)
+            for call in message.tool_calls
+        ]
+        call_ids = {call.get("id") for call in tool_calls}
+
+        learner_context: dict[str, Any] = {}
+
+        for message in messages:
+            if (
+                not isinstance(message, ToolMessage)
+                or message.tool_call_id not in call_ids
+            ):
+                continue
+
+            tool_name = message.name or "learner_tool"
+
+            try:
+                if not isinstance(message.content, str):
+                    raise ValueError("Tool output was not text.")
+
+                learner_context[tool_name] = json.loads(message.content)
+
+            except (TypeError, ValueError, json.JSONDecodeError):
+                learner_context[tool_name] = {
+                    "error": "The learner data tool did not return valid structured data."
+                }
+
+        return {"learner_context": learner_context}
+
     def retrieve_context_node(
         state: TutorGraphState,
     ) -> dict[str, Any]:
@@ -152,6 +297,9 @@ def build_tutor_graph(
 
         if state.get("retrieved_chunks"):
             return "adapt_teaching"
+
+        if state.get("learner_context"):
+            return "generate_answer"
 
         return "abstain"
 
@@ -184,6 +332,11 @@ def build_tutor_graph(
         if teaching_profile is not None:
             arguments["teaching_guidance"] = teaching_profile
 
+        learner_context = state.get("learner_context")
+
+        if learner_context:
+            arguments["learner_context"] = learner_context
+
         result = generate_grounded_answer(**arguments)
 
         return {"answer_result": result}
@@ -193,11 +346,18 @@ def build_tutor_graph(
     ) -> dict[str, Any]:
         """Return a safe response when retrieval finds no evidence."""
 
-        result = generate_grounded_answer(
-            question=state["retrieval_query"],
-            retrieved_chunks=[],
-            client=client,
-        )
+        arguments = {
+            "question": state["retrieval_query"],
+            "retrieved_chunks": [],
+            "client": client,
+        }
+
+        learner_context = state.get("learner_context")
+
+        if learner_context:
+            arguments["learner_context"] = learner_context
+
+        result = generate_grounded_answer(**arguments)
 
         return {"answer_result": result}
 
@@ -212,7 +372,31 @@ def build_tutor_graph(
 
     graph.add_edge(START, "validate_input")
     graph.add_edge("validate_input", "resolve_context")
-    graph.add_edge("resolve_context", "retrieve_context")
+
+    if enable_tools:
+        graph.add_node("decide_learner_tools", decide_learner_tools_node)
+        graph.add_node(
+            "learner_tools",
+            ToolNode(LEARNER_DATA_TOOLS),
+        )
+        graph.add_node(
+            "collect_learner_context",
+            collect_learner_context_node,
+        )
+
+        graph.add_edge("resolve_context", "decide_learner_tools")
+        graph.add_conditional_edges(
+            "decide_learner_tools",
+            route_after_tool_decision,
+            {
+                "learner_tools": "learner_tools",
+                "retrieve_context": "retrieve_context",
+            },
+        )
+        graph.add_edge("learner_tools", "collect_learner_context")
+        graph.add_edge("collect_learner_context", "retrieve_context")
+    else:
+        graph.add_edge("resolve_context", "retrieve_context")
 
     graph.add_conditional_edges(
         "retrieve_context",
@@ -239,6 +423,7 @@ def run_tutor_graph(
     conversation_history: list[dict[str, Any]] | None = None,
     user_id: str | None = None,
     session_id: str | None = None,
+    tool_model: Any | None = None,
 ) -> dict[str, Any]:
     """Run the adaptive tutor, checkpointing when a learner chat is supplied."""
 
@@ -272,6 +457,8 @@ def run_tutor_graph(
             graph = build_tutor_graph(
                 client=client,
                 checkpointer=checkpointer,
+                enable_tools=True,
+                tool_model=tool_model,
             )
             final_state = graph.invoke(
                 graph_input,
