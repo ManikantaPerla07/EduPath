@@ -224,8 +224,28 @@ def verify_database(connection):
     return len(existing_tables)
 
 
+def setup_langgraph_checkpointer(database_url):
+    """Create or update LangGraph's managed PostgreSQL checkpoint tables."""
+
+    from langgraph.checkpoint.postgres import PostgresSaver
+    from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+    from psycopg.rows import dict_row
+
+    with psycopg.connect(
+        database_url,
+        connect_timeout=20,
+        autocommit=True,
+        row_factory=dict_row,
+    ) as connection:
+        checkpointer = PostgresSaver(
+            connection,
+            serde=JsonPlusSerializer(allowed_msgpack_modules=None),
+        )
+        checkpointer.setup()
+
+
 def run_migrations():
-    """Execute all pending migrations in sequence."""
+    """Execute all pending application and LangGraph migrations."""
 
     migration_files = get_migration_files()
 
@@ -256,6 +276,8 @@ def run_migrations():
             results[status] += 1
 
         table_count = verify_database(connection)
+
+    setup_langgraph_checkpointer(database_url)
 
     print("\n========== EDUPATH MIGRATION REPORT ==========")
 
