@@ -7,6 +7,9 @@ from unittest.mock import MagicMock, patch
 from uuid import UUID
 
 from services.chat_service import (
+    CHAT_RATE_LIMIT_WINDOW_MINUTES,
+    MAX_USER_QUESTIONS_PER_WINDOW,
+    ChatRateLimitError,
     MAX_MESSAGE_LENGTH,
     MAX_TITLE_LENGTH,
     create_chat_session,
@@ -465,7 +468,9 @@ class ChatDatabaseTests(unittest.TestCase):
         mock_connect.return_value = connection
 
         cursor.fetchone.side_effect = [
+            (USER_ID,),
             (SESSION_ID,),
+            (0, None),
             message_row(),
         ]
 
@@ -480,13 +485,86 @@ class ChatDatabaseTests(unittest.TestCase):
         self.assertEqual(result["role"], "user")
         self.assertEqual(result["citations"], [])
 
-        self.assertEqual(cursor.execute.call_count, 3)
+        self.assertEqual(cursor.execute.call_count, 5)
 
-        insert_sql = cursor.execute.call_args_list[1].args[0]
-        update_sql = cursor.execute.call_args_list[2].args[0]
+        user_lock_sql = cursor.execute.call_args_list[0].args[0]
+        session_lock_sql = cursor.execute.call_args_list[1].args[0]
+        rate_limit_sql = cursor.execute.call_args_list[2].args[0]
+        insert_sql = cursor.execute.call_args_list[3].args[0]
+        update_sql = cursor.execute.call_args_list[4].args[0]
 
+        self.assertIn("FROM users", user_lock_sql)
+        self.assertIn("is_active = TRUE", user_lock_sql)
+        self.assertIn("FOR UPDATE", user_lock_sql)
+        self.assertIn("FOR UPDATE", session_lock_sql)
+        self.assertIn("COUNT(*)::INTEGER", rate_limit_sql)
+        self.assertIn("created_at >=", rate_limit_sql)
         self.assertIn("INSERT INTO chat_messages", insert_sql)
         self.assertIn("last_activity_at = NOW()", update_sql)
+        self.assertEqual(
+            cursor.execute.call_args_list[2].args[1],
+            (
+                CHAT_RATE_LIMIT_WINDOW_MINUTES,
+                USER_ID,
+                CHAT_RATE_LIMIT_WINDOW_MINUTES,
+            ),
+        )
+
+    @patch("services.chat_service.load_database_url", return_value="test-db")
+    @patch("services.chat_service.psycopg.connect")
+    def test_rejects_user_question_when_rolling_limit_is_reached(
+        self,
+        mock_connect,
+        mock_database_url,
+    ):
+        connection, cursor = make_database()
+        mock_connect.return_value = connection
+        cursor.fetchone.side_effect = [
+            (USER_ID,),
+            (SESSION_ID,),
+            (MAX_USER_QUESTIONS_PER_WINDOW, 125),
+        ]
+
+        with self.assertRaises(ChatRateLimitError) as context:
+            save_chat_message(
+                str(USER_ID),
+                str(SESSION_ID),
+                "user",
+                "Another Python question",
+            )
+
+        self.assertEqual(context.exception.retry_after_seconds, 125)
+        self.assertIn("20 questions every 10 minutes", str(context.exception))
+        self.assertEqual(cursor.execute.call_count, 3)
+        executed_sql = [
+            call.args[0]
+            for call in cursor.execute.call_args_list
+        ]
+        self.assertFalse(
+            any("INSERT INTO chat_messages" in query for query in executed_sql)
+        )
+
+    @patch("services.chat_service.load_database_url", return_value="test-db")
+    @patch("services.chat_service.psycopg.connect")
+    def test_rejects_inactive_learner_before_session_access(
+        self,
+        mock_connect,
+        mock_database_url,
+    ):
+        connection, cursor = make_database()
+        mock_connect.return_value = connection
+        cursor.fetchone.return_value = None
+
+        with self.assertRaises(LookupError):
+            save_chat_message(
+                str(USER_ID),
+                str(SESSION_ID),
+                "user",
+                "Hello",
+            )
+
+        cursor.execute.assert_called_once()
+        self.assertIn("is_active = TRUE", cursor.execute.call_args.args[0])
 
     @patch("services.chat_service.load_database_url", return_value="test-db")
     @patch("services.chat_service.psycopg.connect")
@@ -541,7 +619,10 @@ class ChatDatabaseTests(unittest.TestCase):
     ):
         connection, cursor = make_database()
         mock_connect.return_value = connection
-        cursor.fetchone.return_value = None
+        cursor.fetchone.side_effect = [
+            (USER_ID,),
+            None,
+        ]
 
         with self.assertRaises(LookupError):
             save_chat_message(
@@ -551,7 +632,7 @@ class ChatDatabaseTests(unittest.TestCase):
                 "Hello",
             )
 
-        cursor.execute.assert_called_once()
+        self.assertEqual(cursor.execute.call_count, 2)
         self.assertIn(
             "FOR UPDATE",
             cursor.execute.call_args.args[0],
