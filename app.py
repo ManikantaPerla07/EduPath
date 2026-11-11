@@ -12,6 +12,7 @@ from services.progress_service import fetch_learner_topic_progress
 from ui.assessment import render_assessment
 from ui.study_plan import render_study_plan
 from ui.tutor import render_tutor
+from ui.knowledge_management import render_knowledge_management
 
 
 st.set_page_config(
@@ -357,14 +358,19 @@ def home_screen(learner):
     st.sidebar.caption("Personalized Tutoring Agent")
     st.sidebar.divider()
 
+    navigation_options = [
+        "Dashboard",
+        "AI Tutor",
+        "Python Assessment",
+        "Study Plan",
+    ]
+
+    if learner.get("role") == "admin":
+        navigation_options.append("Knowledge Management")
+
     selected_page = st.sidebar.radio(
         "Navigation",
-        options=[
-            "Dashboard",
-            "AI Tutor",
-            "Python Assessment",
-            "Study Plan",
-        ],
+        options=navigation_options,
         key="edupath_navigation",
     )
 
@@ -390,6 +396,13 @@ def home_screen(learner):
 
     if selected_page == "Study Plan":
         render_study_plan(learner)
+        return
+
+    if selected_page == "Knowledge Management":
+        if learner.get("role") != "admin":
+            st.error("An active administrator account is required.")
+            return
+        render_knowledge_management(learner)
         return
 
     # Main learner dashboard.
