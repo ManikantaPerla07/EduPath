@@ -35,52 +35,57 @@ class GoogleSessionExpired(Exception):
 def login_screen():
     """Display a polished, responsive Google sign-in experience."""
 
-    left, right = st.columns([1.15, 0.85], gap="large")
-
-    with left:
-        st.markdown(
-            """
-            <div class="edupath-login-wrap">
-                <div class="edupath-brand-mark">E</div>
-                <div class="edupath-login-kicker">PERSONALIZED PYTHON LEARNING</div>
-                <h1 class="edupath-login-title">
-                    Learn with a plan.<br>Grow with every step.
-                </h1>
-                <p class="edupath-login-copy">
-                    A focused learning space that brings together guided
-                    explanations, adaptive practice, and a study plan shaped
-                    around your progress.
-                </p>
-                <div class="edupath-login-points">
-                    <span>Guided AI tutoring</span>
-                    <span>Adaptive assessments</span>
-                    <span>Personalized study plans</span>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+    with st.container(key="edupath_login_layout"):
+        left, right = st.columns(
+            [1.15, 0.85],
+            gap="large",
+            vertical_alignment="center",
         )
 
-    with right:
-        with st.container(border=True):
+        with left:
             st.markdown(
-                '<div class="edupath-eyebrow">WELCOME TO EDUPATH</div>',
+                """
+                <div class="edupath-login-wrap">
+                    <div class="edupath-brand-mark">E</div>
+                    <div class="edupath-login-kicker">PERSONALIZED PYTHON LEARNING</div>
+                    <h1 class="edupath-login-title">
+                        Learn with a plan.<br>Grow with every step.
+                    </h1>
+                    <p class="edupath-login-copy">
+                        A focused learning space that brings together guided
+                        explanations, adaptive practice, and a study plan shaped
+                        around your progress.
+                    </p>
+                    <div class="edupath-login-points">
+                        <span>Guided AI tutoring</span>
+                        <span>Adaptive assessments</span>
+                        <span>Personalized study plans</span>
+                    </div>
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
-            st.header("Sign in to continue")
-            st.write(
-                "Use your Google account to access your learning dashboard, "
-                "tutor conversations, assessments, and saved progress."
-            )
-            st.button(
-                "Continue with Google",
-                on_click=st.login,
-                type="primary",
-                use_container_width=True,
-            )
-            st.caption(
-                "Your learning activity is saved to your private EduPath account."
-            )
+
+        with right:
+            with st.container(border=True, key="edupath_login_card"):
+                st.markdown(
+                    '<div class="edupath-eyebrow">WELCOME TO EDUPATH</div>',
+                    unsafe_allow_html=True,
+                )
+                st.header("Sign in to continue")
+                st.write(
+                    "Use your Google account to access your learning dashboard, "
+                    "tutor conversations, assessments, and saved progress."
+                )
+                st.button(
+                    "Continue with Google",
+                    on_click=st.login,
+                    type="primary",
+                    width="stretch",
+                )
+                st.caption(
+                    "Your learning activity is saved to your private EduPath account."
+                )
 
 
 def get_authenticated_google_claims():
@@ -225,7 +230,7 @@ def adult_confirmation_screen(learner):
         submitted = st.form_submit_button(
             "Continue to EduPath",
             type="primary",
-            use_container_width=True,
+            width="stretch",
         )
 
     if submitted:
@@ -261,7 +266,7 @@ def adult_confirmation_screen(learner):
     st.button(
         "Sign out",
         on_click=logout_user,
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -275,6 +280,12 @@ def navigate_to_study_plan():
     """Navigate to the personalized study-plan page."""
 
     st.session_state["edupath_navigation"] = "Study Plan"
+
+
+def select_workspace_page(page: str) -> None:
+    """Persist the selected workspace page before Streamlit reruns."""
+
+    st.session_state["edupath_navigation"] = page
 
 
 def _format_mastery_status(status):
@@ -459,14 +470,14 @@ def render_workspace_content(
         st.button(
             "Start Python assessment",
             type="primary",
-            use_container_width=True,
+            width="stretch",
             on_click=navigate_to_assessment,
         )
 
     with action_columns[1]:
         st.button(
             "View my study plan",
-            use_container_width=True,
+            width="stretch",
             on_click=navigate_to_study_plan,
         )
 
@@ -538,11 +549,31 @@ def home_screen(learner):
             ]
         )
 
-    selected_page = st.sidebar.radio(
-        "Workspace",
-        options=navigation_options,
-        key="edupath_navigation",
-    )
+    st.session_state.setdefault("edupath_navigation", "Dashboard")
+    if st.session_state["edupath_navigation"] not in navigation_options:
+        st.session_state["edupath_navigation"] = "Dashboard"
+
+    with st.sidebar.container(key="edupath_sidebar_nav"):
+        st.caption("Workspace")
+        for page in navigation_options:
+            page_key = (
+                "edupath_nav_"
+                + page.lower().replace(" ", "_")
+            )
+            st.button(
+                page,
+                key=page_key,
+                type=(
+                    "primary"
+                    if st.session_state["edupath_navigation"] == page
+                    else "secondary"
+                ),
+                width="stretch",
+                on_click=select_workspace_page,
+                args=(page,),
+            )
+
+    selected_page = st.session_state["edupath_navigation"]
 
     st.sidebar.divider()
 
@@ -554,8 +585,9 @@ def home_screen(learner):
 
     st.sidebar.button(
         "Sign out",
+        key="edupath_sidebar_sign_out",
         on_click=logout_user,
-        use_container_width=True,
+        width="stretch",
     )
 
     previous_page = st.session_state.get("edupath_last_navigation")
@@ -606,7 +638,7 @@ if learner.get("role") != "admin":
         st.sidebar.button(
             "Sign out",
             on_click=logout_user,
-            use_container_width=True,
+            width="stretch",
         )
         st.stop()
 
@@ -620,7 +652,7 @@ if learner.get("role") != "admin":
         st.sidebar.button(
             "Sign out",
             on_click=logout_user,
-            use_container_width=True,
+            width="stretch",
         )
         st.stop()
 
