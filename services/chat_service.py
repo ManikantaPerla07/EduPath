@@ -10,6 +10,9 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from services.assessment_service import load_database_url
+from services.langgraph_checkpoint_service import (
+    delete_langgraph_thread_checkpoints,
+)
 
 
 DEFAULT_SESSION_LIMIT = 50
@@ -537,27 +540,48 @@ def delete_chat_session(
     session_id: str | UUID,
 ) -> bool:
     """
-    Delete a session owned by the learner.
+    Delete an owned conversation and its LangGraph checkpoints.
 
-    PostgreSQL ON DELETE CASCADE removes its associated messages.
+    Checkpoints are deleted before the session row. If checkpoint cleanup
+    fails, the chat transcript remains available rather than leaving hidden
+    graph state behind after a successful-looking deletion.
     """
 
     user_uuid = _validate_uuid(user_id, "User ID")
     session_uuid = _validate_uuid(session_id, "Session ID")
+    database_url = load_database_url()
 
-    query = """
-        DELETE FROM chat_sessions
-        WHERE session_id = %s
-          AND user_id = %s
-        RETURNING session_id;
-    """
-
-    with psycopg.connect(load_database_url()) as connection:
+    with psycopg.connect(database_url) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
-                query,
+                """
+                SELECT thread_id
+                FROM chat_sessions
+                WHERE session_id = %s
+                  AND user_id = %s
+                FOR UPDATE;
+                """,
                 (session_uuid, user_uuid),
             )
-            row = cursor.fetchone()
+            session_row = cursor.fetchone()
 
-    return row is not None
+            if session_row is None:
+                return False
+
+            delete_langgraph_thread_checkpoints(
+                thread_id=session_row[0],
+                database_url=database_url,
+            )
+
+            cursor.execute(
+                """
+                DELETE FROM chat_sessions
+                WHERE session_id = %s
+                  AND user_id = %s
+                RETURNING session_id;
+                """,
+                (session_uuid, user_uuid),
+            )
+            deleted_row = cursor.fetchone()
+
+    return deleted_row is not None
