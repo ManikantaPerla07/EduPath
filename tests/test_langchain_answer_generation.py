@@ -137,6 +137,42 @@ class LangChainAnswerGenerationTests(unittest.TestCase):
         return_value="test-api-key",
     )
     @patch("services.answer_generation_service.ChatGoogleGenerativeAI")
+    def test_uses_fallback_after_http_transport_interruption(
+        self,
+        mock_model_factory,
+        mock_load_key,
+    ):
+        remote_protocol_error = type(
+            "RemoteProtocolError",
+            (Exception,),
+            {"__module__": "httpx"},
+        )
+
+        def fail_with_transport_error(_):
+            raise remote_protocol_error("Server disconnected")
+
+        mock_model_factory.side_effect = [
+            RunnableLambda(fail_with_transport_error),
+            RunnableLambda(
+                lambda _: "A variable refers to a value. [S1]"
+            ),
+        ]
+
+        result = generate_grounded_answer(
+            question="What is a variable?",
+            retrieved_chunks=[make_chunk()],
+        )
+
+        self.assertFalse(result["insufficient_evidence"])
+        self.assertEqual(result["model"], FALLBACK_GENERATION_MODEL)
+        self.assertEqual(mock_model_factory.call_count, 2)
+        self.assertEqual(mock_load_key.call_count, 2)
+
+    @patch(
+        "services.answer_generation_service.load_gemini_api_key",
+        return_value="test-api-key",
+    )
+    @patch("services.answer_generation_service.ChatGoogleGenerativeAI")
     def test_does_not_retry_non_retryable_error(
         self,
         mock_model_factory,
