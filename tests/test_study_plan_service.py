@@ -646,6 +646,10 @@ class StudyPlanActivityStatusTests(unittest.TestCase):
             self._call(cursor)
 
         self.assertEqual(cursor.execute.call_count, 1)
+        self.assertIn(
+            "c.is_published = TRUE",
+            cursor.execute.call_args.args[0],
+        )
 
     def test_invalid_user_id_is_rejected_before_database_access(self):
         with patch(
