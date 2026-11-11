@@ -18,6 +18,8 @@ from services.retrieval_service import (
     MAX_SEARCH_LIMIT,
     MIN_SEARCH_LIMIT,
 )
+from services.chat_service import get_chat_session
+from services.langgraph_checkpoint_service import open_langgraph_checkpointer
 
 from services.langchain_retriever import retrieve_course_chunks
 
@@ -219,7 +221,7 @@ def build_tutor_graph(client: Any | None = None):
     graph.add_edge("generate_answer", END)
     graph.add_edge("abstain", END)
 
-    return graph.compile()
+    return graph.compile(checkpointer=checkpointer)
 
 
 def run_tutor_graph(
@@ -230,21 +232,49 @@ def run_tutor_graph(
     client: Any | None = None,
     conversation_history: list[dict[str, Any]] | None = None,
     user_id: str | None = None,
+    session_id: str | None = None,
 ) -> dict[str, Any]:
-    """Run the adaptive tutor and return its grounded answer result."""
+    """Run the adaptive tutor, checkpointing when a learner chat is supplied."""
 
-    graph = build_tutor_graph(client=client)
+    graph_input = {
+        "question": question,
+        "course_slug": course_slug,
+        "topic_slug": topic_slug,
+        "limit": limit,
+        "conversation_history": conversation_history or [],
+        "user_id": user_id,
+    }
 
-    final_state = graph.invoke(
-        {
-            "question": question,
-            "course_slug": course_slug,
-            "topic_slug": topic_slug,
-            "limit": limit,
-            "conversation_history": conversation_history or [],
-            "user_id": user_id,
-        }
-    )
+    if session_id is None:
+        graph = build_tutor_graph(client=client)
+        final_state = graph.invoke(graph_input)
+    else:
+        if user_id is None:
+            raise ValueError(
+                "A learner user ID is required for a persistent chat session."
+            )
+
+        # Resolve the thread ID from an owned session. Never trust a thread ID
+        # supplied by the browser or model.
+        session = get_chat_session(
+            user_id=user_id,
+            session_id=session_id,
+        )
+        thread_id = session["thread_id"]
+
+        with open_langgraph_checkpointer() as checkpointer:
+            graph = build_tutor_graph(
+                client=client,
+                checkpointer=checkpointer,
+            )
+            final_state = graph.invoke(
+                graph_input,
+                config={
+                    "configurable": {
+                        "thread_id": thread_id,
+                    }
+                },
+            )
 
     result = final_state.get("answer_result")
 
