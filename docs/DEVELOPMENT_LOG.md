@@ -747,3 +747,35 @@ Date: 2026-11-11
   77 subtests passed on November 11, 2026.
 - The nine sample learning resources remain unuploaded. Final RAG ingestion
   and live retrieval evaluation remain deferred to the final integration phase.
+
+
+## Reliability refinement: prevent overlapping Tutor runs per conversation
+
+Date: 2026-11-11
+
+### Completed
+- Added a per-session run reservation to `start_agent_run()` using a short
+  PostgreSQL transaction and a row lock on the owned chat session and user.
+- The reservation is committed before graph execution; no transaction or row
+  lock is held open while Gemini and LangGraph run.
+- A second persistent Tutor request for the same conversation now raises a
+  dedicated `AgentRunAlreadyActiveError` before the graph/checkpointer is
+  opened. The Streamlit page explains that the submitted question was saved
+  and should be retried after the current response finishes.
+- Requests in different conversations remain independent.
+- Added a 30-minute maximum active reservation window. When a subsequent
+  request arrives, any older `running` record for that session is finalized
+  as `stopped` before a new reservation is created. This recovers sessions
+  after a process crash without a background worker or scheduled job.
+- Kept unrelated telemetry persistence failures best-effort as before; only
+  the explicit active-session conflict blocks a second graph execution.
+- Added service, graph, and UI regression tests for reservation, conflict
+  handling, and learner-facing feedback.
+- No schema migration, dependency, or paid service is required.
+
+### Verification status
+- Local focused and full-suite verification is pending after the developer
+  pulls this milestone. The previous user-verified baseline was 521 passed,
+  77 subtests passed on November 11, 2026.
+- The nine sample learning resources remain unuploaded. Final RAG ingestion
+  and live retrieval evaluation remain deferred to the final integration phase.
