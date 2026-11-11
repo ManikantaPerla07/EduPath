@@ -897,3 +897,28 @@ Date: 2026-11-11
   530 passed and 77 subtests passed on November 11, 2026.
 - Migration 006 is applied to Neon. The nine sample learning resources remain
   unuploaded; final RAG ingestion and live retrieval evaluation remain deferred.
+
+## Security refinement: serialize adult confirmation and answer feedback with account deactivation
+
+Date: 2026-11-11
+
+### Completed
+- Added an active-account check and `FOR SHARE` row lock before saving
+  learner adult-status confirmation.
+- Added the same active-account check and row lock before saving or updating
+  feedback on an assistant answer.
+- The locks are held only for the database transaction. Account deactivation
+  therefore waits for an authorized write already in progress, while a write
+  that starts after deactivation is rejected.
+- Added regression tests for successful writes, inactive-account rejection,
+  and the existing profile/message ownership checks.
+- No database migration, dependency, or external service is required.
+
+### Verification status
+- The change is committed to the feature branch; local focused and full-suite
+  verification is pending after the developer pulls it.
+- The preceding user-verified full-suite baseline was 530 passed and
+  77 subtests passed on November 11, 2026.
+- Migration 006 remains applied to Neon. The nine sample learning resources
+  remain unuploaded; final RAG ingestion and live retrieval evaluation remain
+  deferred to the final integration phase.
