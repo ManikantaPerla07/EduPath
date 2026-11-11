@@ -5,6 +5,8 @@ import logging
 import psycopg
 import streamlit as st
 
+from ui.theme import render_page_header
+
 from services.agent_telemetry_insights_service import get_agent_run_summary
 
 
@@ -26,14 +28,11 @@ def _format_duration(duration_ms: float | None) -> str:
 def render_agent_telemetry(learner: dict) -> None:
     """Display privacy-preserving operational metrics for Tutor runs."""
 
-    st.title("AI Tutor Operations")
-    st.write(
-        "Review the reliability and execution time of authenticated "
-        "AI Tutor runs for the Python course."
-    )
-    st.caption(
-        "This page shows course-level aggregates only. It does not reveal "
-        "learner identities, chat content, node traces, or error details."
+    render_page_header(
+        "ADMINISTRATOR WORKSPACE",
+        "AI Tutor operations",
+        "Monitor authenticated Tutor run reliability and execution time "
+        "through privacy-preserving course-level metrics.",
     )
 
     if learner.get("role") != "admin":
