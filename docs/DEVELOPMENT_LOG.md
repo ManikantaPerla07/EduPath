@@ -699,3 +699,22 @@ Date: 2026-11-11
   on November 11, 2026, before this dashboard was added.
 - The nine sample learning resources remain unuploaded. Final RAG ingestion
   and live retrieval evaluation remain deferred to the final integration phase.
+
+
+## Reliability refinement: stale Tutor run visibility
+
+Date: 2026-11-11
+
+- Updated the AI Tutor Operations aggregates to distinguish recent running
+  requests from runs that have remained in the database's `running` state
+  for more than 15 minutes.
+- Added a separate stale/long-running count to the overall summary and each
+  daily bucket. This can reveal processes interrupted before the normal
+  completion/failure telemetry write.
+- Stale classification is read-only: dashboard queries do not modify
+  `agent_runs` records or assume that a long-running request definitely failed.
+- Completion and failure percentages continue to use finished runs only;
+  current and stale running records are excluded from that denominator.
+- Added regression coverage for aggregate tuple mapping, threshold conditions,
+  and UI display of the stale/long-running category.
+- No migration or dependency is required. Local verification is pending.
