@@ -186,7 +186,7 @@ def set_course_publication_status(
                     missing.append("at least one active assessment question")
                 if readiness["fully_embedded_document_count"] < 1:
                     missing.append(
-                        "at least one ready resource with all embeddings stored"
+                        "at least one fully embedded active learning resource in ready status"
                     )
 
                 if missing:
