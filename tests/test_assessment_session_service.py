@@ -41,11 +41,35 @@ class TestAssessmentSessionService(unittest.TestCase):
         return_value=[],
     )
     def test_no_available_questions(self, mock_fetch):
-        with self.assertRaisesRegex(ValueError, "No active questions"):
-            start_assessment(
-                str(uuid4()),
-                "python-basics",
-            )
+        from unittest.mock import MagicMock
+
+        user_id = str(uuid4())
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = [
+            (user_id,),
+            ("22222222-2222-4222-8222-222222222222", True),
+        ]
+        connection = MagicMock()
+        connection.__enter__.return_value = connection
+        cursor_context = MagicMock()
+        cursor_context.__enter__.return_value = cursor
+        connection.cursor.return_value = cursor_context
+
+        with (
+            patch(
+                "services.assessment_session_service.psycopg.connect",
+                return_value=connection,
+            ),
+            patch(
+                "services.assessment_session_service.load_database_url",
+                return_value="postgresql://test",
+            ),
+        ):
+            with self.assertRaisesRegex(ValueError, "No active questions"):
+                start_assessment(
+                    user_id,
+                    "python-basics",
+                )
 
         mock_fetch.assert_called_once()
 
