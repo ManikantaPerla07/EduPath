@@ -61,13 +61,19 @@ def render_agent_telemetry(learner: dict) -> None:
         return
 
     st.subheader("Run status — last 14 days")
+    st.caption(
+        "Runs still marked as running after 15 minutes are separated as "
+        "stale/long-running. They may indicate an interrupted process; "
+        "the underlying telemetry record is not changed."
+    )
 
-    status_columns = st.columns(5)
+    status_columns = st.columns(6)
     status_columns[0].metric("Total runs", summary["total_runs"])
     status_columns[1].metric("Completed", summary["completed_runs"])
     status_columns[2].metric("Failed", summary["failed_runs"])
     status_columns[3].metric("Running", summary["running_runs"])
-    status_columns[4].metric("Stopped", summary["stopped_runs"])
+    status_columns[4].metric("Stale / long-running", summary["stale_runs"])
+    status_columns[5].metric("Stopped", summary["stopped_runs"])
 
     st.subheader("Execution health")
     health_columns = st.columns(3)
@@ -109,6 +115,7 @@ def render_agent_telemetry(learner: dict) -> None:
             "Completed": row["completed_runs"],
             "Failed": row["failed_runs"],
             "Running": row["running_runs"],
+            "Stale / long-running": row["stale_runs"],
             "Stopped": row["stopped_runs"],
             "Avg. completed duration": _format_duration(
                 row["average_completed_duration_ms"]
