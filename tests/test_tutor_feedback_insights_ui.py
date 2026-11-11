@@ -101,7 +101,7 @@ class TutorFeedbackInsightsUITests(unittest.TestCase):
                     "Not helpful": 1,
                 }
             ],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
