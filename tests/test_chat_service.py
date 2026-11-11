@@ -232,6 +232,7 @@ class ChatDatabaseTests(unittest.TestCase):
 
         sql = cursor.execute.call_args.args[0]
         self.assertIn("u.is_active = TRUE", sql)
+        self.assertIn("FOR SHARE OF u", sql)
         self.assertIn("c.course_slug = %s", sql)
 
     @patch("services.chat_service.load_database_url", return_value="test-db")
@@ -512,7 +513,6 @@ class ChatDatabaseTests(unittest.TestCase):
         mock_connect.return_value = connection
 
         cursor.fetchone.side_effect = [
-            (USER_ID,),
             (SESSION_ID,),
             (0, 1),
             message_row(),
@@ -529,25 +529,23 @@ class ChatDatabaseTests(unittest.TestCase):
         self.assertEqual(result["role"], "user")
         self.assertEqual(result["citations"], [])
 
-        self.assertEqual(cursor.execute.call_count, 5)
+        self.assertEqual(cursor.execute.call_count, 4)
 
-        user_lock_sql = cursor.execute.call_args_list[0].args[0]
-        session_lock_sql = cursor.execute.call_args_list[1].args[0]
-        rate_limit_sql = cursor.execute.call_args_list[2].args[0]
-        insert_sql = cursor.execute.call_args_list[3].args[0]
-        update_sql = cursor.execute.call_args_list[4].args[0]
+        account_session_lock_sql = cursor.execute.call_args_list[0].args[0]
+        rate_limit_sql = cursor.execute.call_args_list[1].args[0]
+        insert_sql = cursor.execute.call_args_list[2].args[0]
+        update_sql = cursor.execute.call_args_list[3].args[0]
 
-        self.assertIn("FROM users", user_lock_sql)
-        self.assertIn("is_active = TRUE", user_lock_sql)
-        self.assertIn("FOR UPDATE", user_lock_sql)
-        self.assertIn("FOR UPDATE", session_lock_sql)
+        self.assertIn("FROM users AS u", account_session_lock_sql)
+        self.assertIn("u.is_active = TRUE", account_session_lock_sql)
+        self.assertIn("FOR UPDATE OF u, cs", account_session_lock_sql)
         self.assertIn("COUNT(*)::INTEGER", rate_limit_sql)
         self.assertIn("created_at >=", rate_limit_sql)
         self.assertIn("statement_timestamp()", rate_limit_sql)
         self.assertIn("INSERT INTO chat_messages", insert_sql)
         self.assertIn("last_activity_at = NOW()", update_sql)
         self.assertEqual(
-            cursor.execute.call_args_list[2].args[1],
+            cursor.execute.call_args_list[1].args[1],
             (
                 CHAT_RATE_LIMIT_WINDOW_MINUTES,
                 USER_ID,
@@ -565,7 +563,6 @@ class ChatDatabaseTests(unittest.TestCase):
         connection, cursor = make_database()
         mock_connect.return_value = connection
         cursor.fetchone.side_effect = [
-            (USER_ID,),
             (SESSION_ID,),
             (MAX_USER_QUESTIONS_PER_WINDOW, 125),
         ]
@@ -580,7 +577,7 @@ class ChatDatabaseTests(unittest.TestCase):
 
         self.assertEqual(context.exception.retry_after_seconds, 125)
         self.assertIn("20 questions every 10 minutes", str(context.exception))
-        self.assertEqual(cursor.execute.call_count, 3)
+        self.assertEqual(cursor.execute.call_count, 2)
         executed_sql = [
             call.args[0]
             for call in cursor.execute.call_args_list
@@ -609,7 +606,8 @@ class ChatDatabaseTests(unittest.TestCase):
             )
 
         cursor.execute.assert_called_once()
-        self.assertIn("is_active = TRUE", cursor.execute.call_args.args[0])
+        self.assertIn("u.is_active = TRUE", cursor.execute.call_args.args[0])
+        self.assertIn("FOR UPDATE OF u, cs", cursor.execute.call_args.args[0])
 
     @patch("services.chat_service.load_database_url", return_value="test-db")
     @patch("services.chat_service.psycopg.connect")
@@ -654,16 +652,48 @@ class ChatDatabaseTests(unittest.TestCase):
             result["citations"][0]["source_id"],
             "S1",
         )
-        self.assertEqual(cursor.execute.call_count, 3)
+        self.assertEqual(cursor.execute.call_count, 2)
         assistant_write_sql = [
             call.args[0]
             for call in cursor.execute.call_args_list
         ]
-        self.assertFalse(
-            any("FROM users" in query for query in assistant_write_sql)
-        )
+        self.assertIn("FROM users AS u", assistant_write_sql[0])
+        self.assertIn("u.is_active = TRUE", assistant_write_sql[0])
+        self.assertIn("FOR UPDATE OF u, cs", assistant_write_sql[0])
         self.assertFalse(
             any("COUNT(*)::INTEGER" in query for query in assistant_write_sql)
+        )
+
+    @patch("services.chat_service.load_database_url", return_value="test-db")
+    @patch("services.chat_service.psycopg.connect")
+    def test_rejects_assistant_reply_after_account_deactivation(
+        self,
+        mock_connect,
+        mock_database_url,
+    ):
+        connection, cursor = make_database()
+        mock_connect.return_value = connection
+        cursor.fetchone.return_value = None
+
+        with self.assertRaisesRegex(
+            LookupError,
+            "active learner account",
+        ):
+            save_chat_message(
+                str(USER_ID),
+                str(SESSION_ID),
+                "assistant",
+                "A generated response",
+            )
+
+        cursor.execute.assert_called_once()
+        self.assertIn(
+            "u.is_active = TRUE",
+            cursor.execute.call_args.args[0],
+        )
+        self.assertIn(
+            "FOR UPDATE OF u, cs",
+            cursor.execute.call_args.args[0],
         )
 
     @patch("services.chat_service.load_database_url", return_value="test-db")
@@ -675,10 +705,7 @@ class ChatDatabaseTests(unittest.TestCase):
     ):
         connection, cursor = make_database()
         mock_connect.return_value = connection
-        cursor.fetchone.side_effect = [
-            (USER_ID,),
-            None,
-        ]
+        cursor.fetchone.return_value = None
 
         with self.assertRaises(LookupError):
             save_chat_message(
@@ -688,9 +715,13 @@ class ChatDatabaseTests(unittest.TestCase):
                 "Hello",
             )
 
-        self.assertEqual(cursor.execute.call_count, 2)
+        self.assertEqual(cursor.execute.call_count, 1)
         self.assertIn(
-            "FOR UPDATE",
+            "FOR UPDATE OF u, cs",
+            cursor.execute.call_args.args[0],
+        )
+        self.assertIn(
+            "u.is_active = TRUE",
             cursor.execute.call_args.args[0],
         )
 
@@ -714,7 +745,10 @@ class ChatDatabaseTests(unittest.TestCase):
             NOW,
         )
 
-        cursor.fetchone.return_value = renamed_row
+        cursor.fetchone.side_effect = [
+            (SESSION_ID,),
+            renamed_row,
+        ]
 
         result = rename_chat_session(
             str(USER_ID),
@@ -723,10 +757,33 @@ class ChatDatabaseTests(unittest.TestCase):
         )
 
         self.assertEqual(result["title"], "Python variables help")
-        self.assertIn(
-            "AND user_id = %s",
-            cursor.execute.call_args.args[0],
-        )
+        self.assertEqual(cursor.execute.call_count, 2)
+        lock_query = cursor.execute.call_args_list[0].args[0]
+        update_query = cursor.execute.call_args_list[1].args[0]
+        self.assertIn("u.is_active = TRUE", lock_query)
+        self.assertIn("FOR UPDATE OF u, cs", lock_query)
+        self.assertIn("AND user_id = %s", update_query)
+
+    @patch("services.chat_service.load_database_url", return_value="test-db")
+    @patch("services.chat_service.psycopg.connect")
+    def test_rename_rejects_inactive_account(
+        self,
+        mock_connect,
+        mock_database_url,
+    ):
+        connection, cursor = make_database()
+        mock_connect.return_value = connection
+        cursor.fetchone.return_value = None
+
+        with self.assertRaisesRegex(LookupError, "active learner account"):
+            rename_chat_session(
+                str(USER_ID),
+                str(SESSION_ID),
+                "New title",
+            )
+
+        cursor.execute.assert_called_once()
+        self.assertIn("u.is_active = TRUE", cursor.execute.call_args.args[0])
 
     @patch("services.chat_service.load_database_url", return_value="test-db")
     @patch("services.chat_service.psycopg.connect")
@@ -774,10 +831,11 @@ class ChatDatabaseTests(unittest.TestCase):
             database_url="test-db",
         )
         self.assertEqual(cursor.execute.call_count, 4)
-        self.assertIn(
-            "SELECT thread_id",
-            cursor.execute.call_args_list[0].args[0],
-        )
+        initial_lock_query = cursor.execute.call_args_list[0].args[0]
+        self.assertIn("SELECT cs.thread_id", initial_lock_query)
+        self.assertIn("JOIN users AS u", initial_lock_query)
+        self.assertIn("u.is_active = TRUE", initial_lock_query)
+        self.assertIn("FOR UPDATE OF u, cs", initial_lock_query)
         self.assertIn(
             "UPDATE agent_runs",
             cursor.execute.call_args_list[1].args[0],
@@ -850,6 +908,29 @@ class ChatDatabaseTests(unittest.TestCase):
                 for call in cursor.execute.call_args_list
             )
         )
+        mock_delete_checkpoints.assert_not_called()
+
+    @patch("services.chat_service.delete_langgraph_thread_checkpoints")
+    @patch("services.chat_service.load_database_url", return_value="test-db")
+    @patch("services.chat_service.psycopg.connect")
+    def test_delete_rejects_inactive_account(
+        self,
+        mock_connect,
+        mock_database_url,
+        mock_delete_checkpoints,
+    ):
+        connection, cursor = make_database()
+        mock_connect.return_value = connection
+        cursor.fetchone.return_value = None
+
+        result = delete_chat_session(
+            str(USER_ID),
+            str(SESSION_ID),
+        )
+
+        self.assertFalse(result)
+        cursor.execute.assert_called_once()
+        self.assertIn("u.is_active = TRUE", cursor.execute.call_args.args[0])
         mock_delete_checkpoints.assert_not_called()
 
     @patch("services.chat_service.delete_langgraph_thread_checkpoints")
