@@ -1,55 +1,92 @@
-﻿# Python Variables and Data Types
+# Python Variables and Data Types
 
 ## 1. What is a variable?
 
-A variable is a named location used to store data in a program.
-In Python, variables are created when a value is assigned.
+A variable is a name that refers to a value in a program. In Python, a variable is created when a value is assigned.
 
-Example:
-
+```python
 name = "Alex"
 age = 20
 height = 170.0
+```
+
+The names `name`, `age` and `height` refer to different values.
 
 ## 2. Python data types
 
-Python supports several built-in data types.
+Python includes several built-in data types.
 
-- int: Stores whole numbers, such as 10 and 25.
-- float: Stores decimal numbers, such as 3.14.
-- str: Stores text, such as "Hello Python".
-- bool: Stores either True or False.
-
-## 3. Checking data types
-
-Python provides the type() function to identify the type of a value.
+| Type | Purpose | Example |
+|---|---|---|
+| `int` | Whole numbers | `10`, `-4` |
+| `float` | Decimal numbers | `3.14`, `170.0` |
+| `str` | Text | `"Hello Python"` |
+| `bool` | True or false values | `True`, `False` |
 
 Example:
 
+```python
 age = 20
-print(type(age))
+height = 170.0
+name = "Alex"
+is_student = True
+
+print(type(age).__name__)
+print(type(height).__name__)
+print(type(name).__name__)
+print(type(is_student).__name__)
+```
 
 Output:
 
+```text
+int
+float
+str
+bool
+```
+
+## 3. Checking data types
+
+Python provides the `type()` function to identify the type of a value.
+
+```python
+value = 25
+print(type(value))
+```
+
+Output:
+
+```text
 <class 'int'>
+```
+
+The value `25` is an integer. The value `25.0` is a floating-point number, while `"25"` is a string.
 
 ## 4. Dynamic typing
 
-Python is dynamically typed. You do not need to declare
-a variable's data type explicitly.
+Python is dynamically typed. You do not need to declare a variable's data type explicitly. A variable can later refer to a value of a different type.
 
-Example:
-
+```python
 value = 10
-value = "Python"
+print(type(value).__name__)
 
-The same variable can refer to values of different types.
+value = "Python"
+print(type(value).__name__)
+```
+
+Output:
+
+```text
+int
+str
+```
+
+Reassigning the variable changes the value it refers to. It does not change the type of the original integer object.
 
 ## 5. Variable naming and common mistakes
 
 Use descriptive names that explain what a value represents.
-
-Good examples:
 
 ```python
 student_name = "Alex"
