@@ -227,7 +227,7 @@ python -m compileall -q agents services ui tests
 git diff --check
 ```
 
-The latest developer-verified baseline before the administrator Knowledge Management milestone was **421 passed, 31 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
+The latest developer-verified full-suite result before the topic-coverage milestone was **454 passed, 31 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
 
 ## Deploy to Streamlit Community Cloud
 
