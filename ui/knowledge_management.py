@@ -409,28 +409,38 @@ def render_knowledge_management(learner: dict) -> None:
         "but do not replace topic-specific coverage."
     )
 
+    coverage_rows = []
     for topic in publication["topic_coverage"]:
-        topic_columns = st.columns([3, 1, 1, 1])
-        topic_columns[0].markdown(f"**{topic['topic_name']}**")
-        topic_columns[1].metric(
-            "Resources",
-            topic["fully_embedded_document_count"],
-        )
-        topic_columns[2].metric(
-            "Embedded chunks",
-            (
+        if topic["is_covered"]:
+            coverage_status = "Covered"
+        elif topic["chunk_count"] > topic["embedded_chunk_count"]:
+            coverage_status = "Embedding incomplete"
+        else:
+            coverage_status = "Resource needed"
+
+        coverage_rows.append({
+            "Topic": topic["topic_name"],
+            "Fully embedded resources": topic["fully_embedded_document_count"],
+            "Embedded chunks": (
                 f"{topic['embedded_chunk_count']}/"
                 f"{topic['chunk_count']}"
                 if topic["chunk_count"]
                 else "—"
             ),
-        )
-        if topic["is_covered"]:
-            topic_columns[3].success("Covered")
-        elif topic["chunk_count"] > topic["embedded_chunk_count"]:
-            topic_columns[3].warning("Embedding incomplete")
-        else:
-            topic_columns[3].error("Resource needed")
+            "Coverage": coverage_status,
+        })
+
+    st.dataframe(
+        coverage_rows,
+        width="stretch",
+        height="content",
+        hide_index=True,
+    )
+    st.caption(
+        "A topic is covered when at least one active, topic-specific resource "
+        "has all its chunks embedded. The chunk total includes other active "
+        "resources too, so it can be incomplete even when coverage is met."
+    )
 
     if publication["uncovered_topics"]:
         st.warning(
@@ -508,7 +518,6 @@ def render_knowledge_management(learner: dict) -> None:
             f"{topic['sequence_number']}. {topic['topic_name']}"
         ] = topic["topic_slug"]
 
-    st.divider()
     st.subheader("Upload a learning resource")
     st.caption(
         "PDF, TXT and Markdown files up to 5 MB are supported. "
