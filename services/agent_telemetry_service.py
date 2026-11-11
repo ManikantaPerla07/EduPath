@@ -16,7 +16,13 @@ MAX_NODE_NAMES = 50
 MAX_NODE_NAME_LENGTH = 80
 MAX_ERROR_CODE_LENGTH = 80
 MAX_DURATION_MS = 86_400_000
+MAX_ACTIVE_RUN_MINUTES = 30
 _ERROR_CODE_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,79}$")
+
+
+class AgentRunAlreadyActiveError(RuntimeError):
+    """Raised when another Tutor execution owns the chat session."""
+
 
 
 def _validate_uuid(value: str | UUID, field_name: str) -> UUID:
@@ -109,8 +115,9 @@ def start_agent_run(
     """
     Start an authenticated agent-run record.
 
-    When a chat session is supplied, ownership is verified in the same INSERT
-    statement. No prompt, answer, or learner profile data is persisted here.
+    Persistent chat runs reserve their session under a PostgreSQL row lock.
+    This serializes concurrent starts for one conversation without holding a
+    database transaction open while the model executes.
     """
 
     user_uuid = _validate_uuid(user_id, "User ID")
@@ -121,42 +128,111 @@ def start_agent_run(
     )
     workflow_name = _validate_workflow_name(workflow_name)
 
-    query = """
-        INSERT INTO agent_runs (
-            user_id,
-            session_id,
-            workflow_name,
-            status
-        )
-        SELECT
-            u.user_id,
-            cs.session_id,
-            %s,
-            'running'
-        FROM users AS u
-        LEFT JOIN chat_sessions AS cs
-          ON cs.session_id = %s::uuid
-         AND cs.user_id = u.user_id
-        WHERE u.user_id = %s
-          AND u.is_active = TRUE
-          AND (%s::uuid IS NULL OR cs.session_id IS NOT NULL)
-        RETURNING run_id;
-    """
-
     with psycopg.connect(
         load_database_url(),
         connect_timeout=20,
     ) as connection:
         with connection.cursor() as cursor:
-            cursor.execute(
-                query,
-                (
-                    workflow_name,
-                    session_uuid,
-                    user_uuid,
-                    session_uuid,
-                ),
-            )
+            if session_uuid is not None:
+                # Every persistent run must lock the same session row before
+                # checking/inserting its running record. The transaction
+                # commits after the reservation is inserted.
+                cursor.execute(
+                    """
+                    SELECT cs.session_id
+                    FROM chat_sessions AS cs
+                    JOIN users AS u
+                      ON u.user_id = cs.user_id
+                    WHERE cs.session_id = %s
+                      AND cs.user_id = %s
+                      AND u.is_active = TRUE
+                    FOR UPDATE OF u, cs;
+                    """,
+                    (session_uuid, user_uuid),
+                )
+
+                if cursor.fetchone() is None:
+                    raise LookupError(
+                        "An active learner and an owned chat session are required."
+                    )
+
+                # A crashed request can leave a running row behind. Treat
+                # runs older than the maximum execution window as stopped
+                # before checking whether this conversation is still busy.
+                cursor.execute(
+                    """
+                    UPDATE agent_runs
+                    SET
+                        status = 'stopped',
+                        completed_at = NOW()
+                    WHERE session_id = %s
+                      AND status = 'running'
+                      AND started_at < (
+                          statement_timestamp()
+                          - (%s * INTERVAL '1 minute')
+                      );
+                    """,
+                    (session_uuid, MAX_ACTIVE_RUN_MINUTES),
+                )
+
+                cursor.execute(
+                    """
+                    SELECT run_id
+                    FROM agent_runs
+                    WHERE session_id = %s
+                      AND status = 'running'
+                    ORDER BY started_at DESC
+                    LIMIT 1;
+                    """,
+                    (session_uuid,),
+                )
+
+                if cursor.fetchone() is not None:
+                    raise AgentRunAlreadyActiveError(
+                        "A response is already being generated for this "
+                        "conversation. Your question has been saved; wait "
+                        "for the current response to finish, then submit "
+                        "it again if needed."
+                    )
+
+                cursor.execute(
+                    """
+                    INSERT INTO agent_runs (
+                        user_id,
+                        session_id,
+                        workflow_name,
+                        status
+                    )
+                    VALUES (%s, %s, %s, 'running')
+                    RETURNING run_id;
+                    """,
+                    (user_uuid, session_uuid, workflow_name),
+                )
+
+            else:
+                # Keep support for non-session lifecycle records without a
+                # per-conversation reservation.
+                cursor.execute(
+                    """
+                    INSERT INTO agent_runs (
+                        user_id,
+                        session_id,
+                        workflow_name,
+                        status
+                    )
+                    SELECT
+                        u.user_id,
+                        NULL,
+                        %s,
+                        'running'
+                    FROM users AS u
+                    WHERE u.user_id = %s
+                      AND u.is_active = TRUE
+                    RETURNING run_id;
+                    """,
+                    (workflow_name, user_uuid),
+                )
+
             row = cursor.fetchone()
 
     if row is None:
