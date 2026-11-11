@@ -470,6 +470,11 @@ def render_knowledge_management(learner: dict) -> None:
             if not publication["is_published"]
             else "Unpublish course",
             type="primary",
+            width="stretch",
+            disabled=(
+                not publication["ready_to_publish"]
+                and not publication["is_published"]
+            ),
         )
 
     if publication_submitted:
