@@ -10,6 +10,7 @@ from services.assessment_service import load_database_url
 
 DEFAULT_TREND_DAYS = 14
 MAX_TREND_DAYS = 90
+STALE_RUN_MINUTES = 15
 
 
 def _validate_admin_id(user_id: str) -> UUID:
@@ -61,7 +62,7 @@ def get_agent_run_summary(
     course_slug = _validate_course_slug(course_slug)
     days = _validate_days(days)
 
-    summary_query = """
+    summary_query = f"""
         SELECT
             COUNT(ar.run_id)::INTEGER AS total_runs,
             COUNT(ar.run_id) FILTER (
@@ -72,7 +73,12 @@ def get_agent_run_summary(
             )::INTEGER AS failed_runs,
             COUNT(ar.run_id) FILTER (
                 WHERE ar.status = 'running'
+                  AND ar.started_at >= NOW() - INTERVAL '{STALE_RUN_MINUTES} minutes'
             )::INTEGER AS running_runs,
+            COUNT(ar.run_id) FILTER (
+                WHERE ar.status = 'running'
+                  AND ar.started_at < NOW() - INTERVAL '{STALE_RUN_MINUTES} minutes'
+            )::INTEGER AS stale_runs,
             COUNT(ar.run_id) FILTER (
                 WHERE ar.status = 'stopped'
             )::INTEGER AS stopped_runs,
@@ -90,7 +96,7 @@ def get_agent_run_summary(
           AND ar.started_at < CURRENT_DATE + INTERVAL '1 day';
     """
 
-    trend_query = """
+    trend_query = f"""
         SELECT
             day_bucket.day_start::DATE AS report_date,
             COUNT(ar.run_id)::INTEGER AS total_runs,
@@ -162,10 +168,11 @@ def get_agent_run_summary(
     completed_runs = int(summary_row[1] or 0)
     failed_runs = int(summary_row[2] or 0)
     running_runs = int(summary_row[3] or 0)
-    stopped_runs = int(summary_row[4] or 0)
+    stale_runs = int(summary_row[4] or 0)
+    stopped_runs = int(summary_row[5] or 0)
     average_duration = (
-        float(summary_row[5])
-        if summary_row[5] is not None
+        float(summary_row[6])
+        if summary_row[6] is not None
         else None
     )
 
@@ -188,6 +195,7 @@ def get_agent_run_summary(
         "completed_runs": completed_runs,
         "failed_runs": failed_runs,
         "running_runs": running_runs,
+        "stale_runs": stale_runs,
         "stopped_runs": stopped_runs,
         "average_completed_duration_ms": average_duration,
         "completed_share_percent": completed_share,
@@ -199,9 +207,10 @@ def get_agent_run_summary(
                 "completed_runs": int(row[2] or 0),
                 "failed_runs": int(row[3] or 0),
                 "running_runs": int(row[4] or 0),
-                "stopped_runs": int(row[5] or 0),
+                "stale_runs": int(row[5] or 0),
+                "stopped_runs": int(row[6] or 0),
                 "average_completed_duration_ms": (
-                    float(row[6]) if row[6] is not None else None
+                    float(row[7]) if row[7] is not None else None
                 ),
             }
             for row in trend_rows
