@@ -11,7 +11,7 @@ EduPath is an AI-powered learning platform for beginner Python programming. It c
 - **Adaptive Practice and Targeted Revision:** presents questions one at a time, gives immediate feedback, and adjusts the preferred difficulty of the next question based on the previous answer.
 - **Learning progress:** tracks attempts, accuracy, and topic mastery status.
 - **Personalized study plan:** schedules learning, practice, revision, and spaced-review activities based on assessment evidence, prerequisites, learning goals, and available study time.
-- **Persistent conversations and plans:** stores learner chat history and study-plan activity status in the database.
+- **Persistent conversations and plans:** stores learner chat history, study-plan activity status, and per-chat LangGraph checkpoints in Neon. Deleting a conversation also deletes its checkpoint state.
 
 ## Technology stack
 
