@@ -952,3 +952,20 @@ Date: 2026-11-11
 - Migration 006 remains applied to Neon. The nine sample learning resources
   remain unuploaded; final RAG ingestion and live retrieval evaluation remain
   deferred to the final integration phase.
+
+
+## 2026-11-12 — Repeatable Python Sample Resource Import
+
+### Completed
+- Added a nine-resource manifest aligned with the existing Python topic slugs.
+- Added an administrator-only import service that reads only the original repository notes.
+- Used SHA-256 content hashes to skip exact resources already stored in the course.
+- Detected archived resources and resources associated with the wrong topic instead of duplicating them silently.
+- Kept embedding generation separate and explicit; importing notes does not call Gemini.
+- Added an administrator Knowledge Management action to import missing sample resources.
+- Extended document inventory metadata with file hash and topic slug for safe import reconciliation.
+- Added unit tests for missing-resource import, repeated idempotent import, archived resources, course validation and missing topic detection.
+- Updated the sample resource guide and project README.
+
+### Next
+Import the missing starter resources into the intended Neon development/demo database, generate all pending chunk embeddings, review each topic's coverage and content, and run the 18-query retrieval evaluation before publishing the course.
