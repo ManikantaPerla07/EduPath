@@ -4,8 +4,8 @@ import unittest
 from unittest.mock import patch
 
 from services.agent_telemetry_service import AgentRunAlreadyActiveError
-from services.chat_service import ChatRateLimitError
-from ui.tutor import _process_question
+from services.chat_service import ChatRateLimitError, ChatSessionBusyError
+from ui.tutor import _process_question, _render_conversation_settings
 
 
 USER_ID = "11111111-1111-4111-8111-111111111111"
@@ -72,6 +72,53 @@ class TutorRequestProtectionUITests(unittest.TestCase):
         )
         run_graph.assert_called_once()
         get_messages.assert_called_once()
+
+
+class TutorConversationDeletionUITests(unittest.TestCase):
+
+    @patch("ui.tutor.st.error")
+    @patch("ui.tutor.st.warning")
+    @patch("ui.tutor.delete_chat_session")
+    @patch("ui.tutor.st.button", return_value=True)
+    @patch("ui.tutor.st.checkbox", return_value=True)
+    @patch("ui.tutor.st.form_submit_button", return_value=False)
+    @patch("ui.tutor.st.form")
+    @patch("ui.tutor.st.expander")
+    def test_active_run_displays_warning_and_keeps_conversation(
+        self,
+        mock_expander,
+        mock_form,
+        mock_form_submit,
+        mock_checkbox,
+        mock_button,
+        mock_delete,
+        show_warning,
+        show_error,
+    ):
+        mock_delete.side_effect = ChatSessionBusyError(
+            "This conversation is currently generating a response. "
+            "Wait for the response to finish before deleting it."
+        )
+
+        _render_conversation_settings(
+            user_id=USER_ID,
+            session={
+                "session_id": SESSION_ID,
+                "title": "Python variables",
+            },
+        )
+
+        mock_delete.assert_called_once_with(
+            user_id=USER_ID,
+            session_id=SESSION_ID,
+        )
+        show_warning.assert_called_once()
+        self.assertIn(
+            "currently generating a response",
+            show_warning.call_args.args[0],
+        )
+        show_error.assert_not_called()
+
 
 
 if __name__ == "__main__":
