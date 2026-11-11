@@ -126,6 +126,7 @@ class AdminDocumentListingTests(unittest.TestCase):
         row = (
             str(DOCUMENT_ID),
             "python-notes.pdf",
+            "a" * 64,
             "pdf",
             1024,
             "Python Notes",
@@ -136,6 +137,7 @@ class AdminDocumentListingTests(unittest.TestCase):
             created_at,
             created_at,
             None,
+            "variables-data-types",
             "Variables and Data Types",
             8,
             5,
@@ -164,6 +166,11 @@ class AdminDocumentListingTests(unittest.TestCase):
         self.assertEqual(documents[0]["chunk_count"], 8)
         self.assertEqual(documents[0]["embedded_chunk_count"], 5)
         self.assertEqual(documents[0]["processing_status"], "ready")
+        self.assertEqual(documents[0]["file_sha256"], "a" * 64)
+        self.assertEqual(
+            documents[0]["topic_slug"],
+            "variables-data-types",
+        )
         query = cursor.execute.call_args_list[-1].args[0]
         self.assertNotIn("file_data", query)
         self.assertNotIn("dc.content", query)
