@@ -341,8 +341,8 @@ def generate_study_plan(
         connect_timeout=20,
     ) as connection:
         with connection.cursor() as cursor:
-            # Lock the learner profile so concurrent plan generation requests
-            # for the same learner/course are serialized.
+            # Lock the learner account and profile so account deactivation
+            # and concurrent plan generation serialize through this transaction.
             cursor.execute(
                 """
                 SELECT
@@ -359,7 +359,7 @@ def generate_study_plan(
                   AND u.is_active = TRUE
                   AND lp.adult_confirmation = TRUE
                   AND c.is_published = TRUE
-                FOR UPDATE OF lp, c;
+                FOR UPDATE OF u, lp, c;
                 """,
                 (course_slug, learner_id),
             )
@@ -684,7 +684,8 @@ def update_study_plan_item_status(
         connect_timeout=20,
     ) as connection:
         with connection.cursor() as cursor:
-            # Lock the item and its parent plan while verifying ownership.
+            # Lock the learner account, item, parent plan, and course while
+            # verifying access. Account deactivation must not race this update.
             cursor.execute(
                 """
                 SELECT
@@ -706,7 +707,7 @@ def update_study_plan_item_status(
                   AND u.is_active = TRUE
                   AND lp.adult_confirmation = TRUE
                   AND c.is_published = TRUE
-                FOR UPDATE OF pi, p, c;
+                FOR UPDATE OF pi, p, u, c;
                 """,
                 (item_id, learner_id),
             )
