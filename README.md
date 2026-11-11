@@ -12,7 +12,7 @@ EduPath is an AI-powered learning platform for beginner Python programming. It c
 - **Learning progress:** tracks attempts, accuracy, and topic mastery status.
 - **Personalized study plan:** schedules learning, practice, revision, and spaced-review activities based on assessment evidence, prerequisites, learning goals, and available study time.
 - **Persistent conversations and plans:** stores learner chat history, study-plan activity status, and per-chat LangGraph checkpoints in Neon. Deleting a conversation also deletes its checkpoint state and is blocked while a Tutor response is actively running.
-- **Tutor request protection:** enforces a database-serialized rolling limit of 20 learner questions per account every 10 minutes across that learner's conversations. Assistant replies and feedback do not consume the question allowance.
+- **Tutor request protection:** enforces a database-serialized rolling limit of 20 learner questions per account every 10 minutes across that learner's conversations. Assistant replies and feedback do not consume the question allowance. Partial indexes support the recent-question count and active-run reservation checks as chat history grows.
 - **AI Tutor run observability:** records success/failure status and execution duration for authenticated persistent Tutor runs. Telemetry stores lifecycle metadata and exception-class codes only; it does not store prompts, answers, or learner profile contents.
 - **Conversation run protection:** allows only one active persistent Tutor execution per conversation. Run reservation, deletion, and start operations serialize on the owned session row; deletion is blocked while a live response is running, and expired reservations older than 30 minutes are finalized as stopped.
 - **Administrator Knowledge Management:** active administrators can upload PDF, TXT and Markdown resources, associate them with course topics, inspect extraction/chunk/embedding status, retry failed extraction, generate missing embeddings, and review topic-by-topic coverage. Publishing requires every course topic to have at least one non-archived, ready, topic-specific resource with all chunk embeddings stored.
@@ -238,7 +238,7 @@ python -m compileall -q agents services ui tests evaluation
 git diff --check
 ```
 
-The latest user-verified full-suite result before the active-run deletion guard was **525 passed, 77 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
+The latest user-verified full-suite result before the chat/Tutor query-index migration was **527 passed, 77 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
 
 ## Evaluate RAG retrieval
 
