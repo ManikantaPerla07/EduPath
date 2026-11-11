@@ -1,6 +1,7 @@
 """LangGraph orchestration for the adaptive, grounded EduPath tutor."""
 
 import json
+import logging
 from typing import Annotated, Any, TypedDict
 
 from langchain_core.messages import (
@@ -21,11 +22,13 @@ from services.adaptive_learning_service import (
 )
 from services.answer_generation_service import (
     AnswerGenerationError,
+    FALLBACK_GENERATION_MODEL,
     GENERATION_MODEL,
     MAX_QUESTION_LENGTH,
     generate_grounded_answer,
 )
 from services.embedding_service import load_gemini_api_key
+from services.gemini_error_utils import is_retryable_gemini_error
 from agents.learner_tools import (
     get_my_learning_progress,
     get_my_study_plan,
@@ -41,6 +44,9 @@ from services.chat_service import get_chat_session
 from services.langgraph_checkpoint_service import open_langgraph_checkpointer
 
 from services.langchain_retriever import retrieve_course_chunks
+
+
+logger = logging.getLogger(__name__)
 
 
 LEARNER_DATA_TOOLS = [
@@ -80,11 +86,13 @@ message without tool calls. Do not answer the learner's question.
 LEARNER_DATA_ANSWER_MODEL_MAX_TOKENS = 1024
 
 
-def _build_learner_tool_model() -> ChatGoogleGenerativeAI:
-    """Create the Gemini model used only to decide whether learner tools are needed."""
+def _build_learner_tool_model(
+    model_name: str = GENERATION_MODEL,
+) -> ChatGoogleGenerativeAI:
+    """Create a Gemini model for selecting authenticated learner-data tools."""
 
     return ChatGoogleGenerativeAI(
-        model=GENERATION_MODEL,
+        model=model_name,
         google_api_key=load_gemini_api_key(),
         temperature=0,
         max_output_tokens=LEARNER_DATA_ANSWER_MODEL_MAX_TOKENS,
@@ -220,24 +228,59 @@ def build_tutor_graph(
                 "An authenticated learner is required for learner-data tools."
             )
 
-        decision_model = (
-            tool_model
+        # Explicitly injected models are used as-is for deterministic tests.
+        # The application uses one bounded primary-to-fallback attempt.
+        model_names = (
+            (None,)
             if tool_model is not None
-            else _build_learner_tool_model()
+            else (GENERATION_MODEL, FALLBACK_GENERATION_MODEL)
         )
-        model_with_tools = decision_model.bind_tools(LEARNER_DATA_TOOLS)
+        decision = None
 
-        try:
-            decision = model_with_tools.invoke(
-                [
-                    SystemMessage(content=TOOL_ROUTER_SYSTEM_INSTRUCTION),
-                    HumanMessage(content=state["retrieval_query"]),
-                ]
-            )
-        except Exception as exc:
-            raise AnswerGenerationError(
-                "The tutor could not determine whether learner data is needed."
-            ) from exc
+        for index, model_name in enumerate(model_names):
+            try:
+                decision_model = (
+                    tool_model
+                    if model_name is None
+                    else _build_learner_tool_model(model_name)
+                )
+                model_with_tools = decision_model.bind_tools(
+                    LEARNER_DATA_TOOLS
+                )
+                decision = model_with_tools.invoke(
+                    [
+                        SystemMessage(
+                            content=TOOL_ROUTER_SYSTEM_INSTRUCTION
+                        ),
+                        HumanMessage(
+                            content=state["retrieval_query"]
+                        ),
+                    ]
+                )
+                break
+
+            except Exception as exc:
+                can_use_fallback = (
+                    tool_model is None
+                    and index == 0
+                    and is_retryable_gemini_error(exc)
+                )
+
+                if can_use_fallback:
+                    logger.warning(
+                        "Gemini learner-tool router model %s failed with "
+                        "a retryable error (%s); trying fallback model %s.",
+                        model_name,
+                        type(exc).__name__,
+                        FALLBACK_GENERATION_MODEL,
+                    )
+                    continue
+
+                failed_model = model_name or "the injected model"
+                raise AnswerGenerationError(
+                    "The tutor could not determine whether learner data "
+                    f"is needed using {failed_model}."
+                ) from exc
 
         if not isinstance(decision, AIMessage):
             raise RuntimeError(
