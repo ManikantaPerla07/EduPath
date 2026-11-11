@@ -536,7 +536,7 @@ class ChatDatabaseTests(unittest.TestCase):
         insert_sql = cursor.execute.call_args_list[2].args[0]
         update_sql = cursor.execute.call_args_list[3].args[0]
 
-        self.assertIn("FROM users AS u", account_session_lock_sql)
+        self.assertIn("JOIN users AS u", account_session_lock_sql)
         self.assertIn("u.is_active = TRUE", account_session_lock_sql)
         self.assertIn("FOR UPDATE OF u, cs", account_session_lock_sql)
         self.assertIn("COUNT(*)::INTEGER", rate_limit_sql)
@@ -652,14 +652,19 @@ class ChatDatabaseTests(unittest.TestCase):
             result["citations"][0]["source_id"],
             "S1",
         )
-        self.assertEqual(cursor.execute.call_count, 2)
+        # Assistant messages use the account/session lock, insert the
+        # cited response, and update the session activity timestamp. The
+        # learner-question rate-limit query must not run for assistant replies.
+        self.assertEqual(cursor.execute.call_count, 3)
         assistant_write_sql = [
             call.args[0]
             for call in cursor.execute.call_args_list
         ]
-        self.assertIn("FROM users AS u", assistant_write_sql[0])
+        self.assertIn("JOIN users AS u", assistant_write_sql[0])
         self.assertIn("u.is_active = TRUE", assistant_write_sql[0])
         self.assertIn("FOR UPDATE OF u, cs", assistant_write_sql[0])
+        self.assertIn("INSERT INTO chat_messages", assistant_write_sql[1])
+        self.assertIn("last_activity_at = NOW()", assistant_write_sql[2])
         self.assertFalse(
             any("COUNT(*)::INTEGER" in query for query in assistant_write_sql)
         )
