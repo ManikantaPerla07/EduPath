@@ -529,6 +529,11 @@ def render_knowledge_management(learner: dict) -> None:
             "Topic association",
             options=list(topic_labels),
         )
+        st.caption(
+            "Choose a specific topic for this file to count toward that "
+            "topic's coverage. 'Entire course' resources are supplemental "
+            "and do not replace topic-specific resources."
+        )
         selected_rights_label = st.selectbox(
             "Rights basis",
             options=list(RIGHTS_BASIS_OPTIONS),
