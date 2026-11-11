@@ -165,6 +165,7 @@ def _message_from_row(row: tuple) -> dict[str, Any]:
         "content": row[3],
         "citations": row[4] or [],
         "created_at": row[5],
+        "feedback": row[6] if len(row) > 6 else None,
     }
 
 
@@ -374,12 +375,13 @@ def get_chat_messages(
             cursor.execute(
                 """
                 SELECT
-                    message_id,
-                    session_id,
-                    role,
-                    content,
-                    citations,
-                    created_at
+                    recent_messages.message_id,
+                    recent_messages.session_id,
+                    recent_messages.role,
+                    recent_messages.content,
+                    recent_messages.citations,
+                    recent_messages.created_at,
+                    feedback.is_helpful
                 FROM (
                     SELECT
                         message_id,
@@ -393,9 +395,14 @@ def get_chat_messages(
                     ORDER BY created_at DESC, message_id DESC
                     LIMIT %s
                 ) AS recent_messages
-                ORDER BY created_at ASC, message_id ASC;
+                LEFT JOIN chat_message_feedback AS feedback
+                  ON feedback.message_id = recent_messages.message_id
+                 AND feedback.user_id = %s
+                ORDER BY
+                    recent_messages.created_at ASC,
+                    recent_messages.message_id ASC;
                 """,
-                (session_uuid, limit),
+                (session_uuid, limit, user_uuid),
             )
 
             rows = cursor.fetchall()
@@ -493,6 +500,73 @@ def save_chat_message(
             )
 
     return _message_from_row(row)
+
+
+def save_chat_feedback(
+    user_id: str | UUID,
+    message_id: str | UUID,
+    is_helpful: bool,
+) -> dict[str, Any]:
+    """
+    Save or update feedback on an assistant message owned by the learner.
+
+    The INSERT ... SELECT checks message role and session ownership in the
+    same statement as the upsert, so another learner cannot rate the message.
+    """
+
+    user_uuid = _validate_uuid(user_id, "User ID")
+    message_uuid = _validate_uuid(message_id, "Message ID")
+
+    if not isinstance(is_helpful, bool):
+        raise ValueError("Feedback rating must be a boolean.")
+
+    query = """
+        INSERT INTO chat_message_feedback (
+            message_id,
+            user_id,
+            is_helpful
+        )
+        SELECT
+            cm.message_id,
+            cs.user_id,
+            %s
+        FROM chat_messages AS cm
+        JOIN chat_sessions AS cs
+          ON cs.session_id = cm.session_id
+        WHERE cm.message_id = %s
+          AND cs.user_id = %s
+          AND cm.role = 'assistant'
+        ON CONFLICT (message_id) DO UPDATE
+        SET
+            is_helpful = EXCLUDED.is_helpful,
+            updated_at = NOW()
+        WHERE chat_message_feedback.user_id = EXCLUDED.user_id
+        RETURNING
+            message_id,
+            user_id,
+            is_helpful,
+            created_at,
+            updated_at;
+    """
+
+    with psycopg.connect(load_database_url()) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                query,
+                (is_helpful, message_uuid, user_uuid),
+            )
+            row = cursor.fetchone()
+
+    if row is None:
+        raise LookupError("Assistant message was not found.")
+
+    return {
+        "message_id": str(row[0]),
+        "user_id": str(row[1]),
+        "is_helpful": row[2],
+        "created_at": row[3],
+        "updated_at": row[4],
+    }
 
 
 def rename_chat_session(
