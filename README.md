@@ -5,7 +5,7 @@ EduPath is an AI-powered learning platform for beginner Python programming. It c
 ## What EduPath does
 
 - **Google sign-in and learner onboarding:** authenticates learners and stores learner profiles in PostgreSQL.
-- **AI Tutor:** answers questions using course material retrieved through retrieval-augmented generation (RAG), with citations where available.
+- **AI Tutor:** answers questions using course material retrieved through retrieval-augmented generation (RAG), with citations where available. Learners can rate each assistant answer with thumbs up/down; feedback is persisted per answer and can be updated later.
 - **LangGraph agent workflow:** orchestrates contextual question resolution, grounded retrieval, progress-aware teaching, and answer generation. For authenticated chat sessions, Gemini can select read-only tools for the learner's own progress or study plan; learner identity and course scope are injected by the application, not chosen by the model.
 - **Diagnostic assessment:** provides a 27-question Python assessment covering nine topics.
 - **Adaptive Practice and Targeted Revision:** presents questions one at a time, gives immediate feedback, and adjusts the preferred difficulty of the next question based on the previous answer.
@@ -227,7 +227,7 @@ python -m compileall -q agents services ui tests
 git diff --check
 ```
 
-The latest developer-verified full-suite result before the topic-coverage milestone was **454 passed, 31 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
+The latest user-verified full-suite result before the assistant-feedback milestone was **459 passed, 49 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
 
 ## Deploy to Streamlit Community Cloud
 
