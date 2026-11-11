@@ -245,7 +245,7 @@ Keep all credentials in Streamlit's secrets settings. Do not commit or share a p
 
 ## Current scope and limitations
 
-The current MVP focuses on beginner Python programming, with nine topics and a seeded question bank of 27 multiple-choice questions (nine easy, nine medium, and nine hard). The current administrator interface covers shared document ingestion, processing status and embedding recovery. Course authoring, course publication controls, resource deletion/archival, and general-purpose instructor analytics are not included yet.
+The current MVP focuses on beginner Python programming, with nine topics and a seeded question bank of 27 multiple-choice questions (nine easy, nine medium, and nine hard). The administrator interface supports shared document ingestion, processing and embedding recovery, course publication, and reversible resource archival. Course authoring, permanent resource deletion, and general-purpose instructor analytics are not included yet.
 
 ## Development history
 
