@@ -470,7 +470,7 @@ class ChatDatabaseTests(unittest.TestCase):
         cursor.fetchone.side_effect = [
             (USER_ID,),
             (SESSION_ID,),
-            (0, None),
+            (0, 1),
             message_row(),
         ]
 
@@ -608,6 +608,17 @@ class ChatDatabaseTests(unittest.TestCase):
         self.assertEqual(
             result["citations"][0]["source_id"],
             "S1",
+        )
+        self.assertEqual(cursor.execute.call_count, 3)
+        assistant_write_sql = [
+            call.args[0]
+            for call in cursor.execute.call_args_list
+        ]
+        self.assertFalse(
+            any("FROM users" in query for query in assistant_write_sql)
+        )
+        self.assertFalse(
+            any("COUNT(*)::INTEGER" in query for query in assistant_write_sql)
         )
 
     @patch("services.chat_service.load_database_url", return_value="test-db")
