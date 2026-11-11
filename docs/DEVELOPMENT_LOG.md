@@ -631,3 +631,22 @@ Date: 2026-11-11
 - Tests for this milestone have been added but have not yet been run in the local environment.
 - The latest user-verified full-suite result before this milestone was 469 passed and 53 subtests passed.
 - The nine sample learning resources remain unuploaded; final RAG corpus ingestion and live retrieval validation remain deferred to the final integration phase.
+
+## Milestone: Golden-Query RAG Retrieval Evaluation
+
+Date: 2026-11-11
+
+### Completed
+- Added 18 original golden queries covering all nine Python course topics, with two questions assigned to each topic.
+- Added a retrieval evaluation service that searches course-wide without passing the expected topic as a filter.
+- Added Hit@K, Precision@K, Mean Reciprocal Rank (MRR), retrieval coverage, and per-topic metrics.
+- Added a command-line runner with readable output and optional JSON report export.
+- Added benchmark documentation describing metric definitions, limitations, and final-phase execution.
+- Added automated tests for the dataset, input validation, ranking metrics, course-wide search behavior, empty retrieval, and malformed retrieval results.
+- Updated README with the evaluation workflow and final-integration requirement.
+
+### Verification status
+- The benchmark and metric tests have been added but have not yet been run in the local environment.
+- The live evaluator has intentionally not been executed. It requires all nine approved resources to be uploaded, embedded, reviewed, and the Python course published. It makes one Gemini query-embedding request per golden query and performs read-only pgvector searches.
+- This benchmark measures expected-topic retrieval alignment only. It does not establish factual correctness, answer faithfulness, citation correctness, or teaching quality.
+- The latest user-verified full-suite baseline before this milestone was 479 passed and 58 subtests passed on November 11, 2026.
