@@ -22,6 +22,22 @@ MAX_MESSAGE_LIMIT = 500
 MAX_MESSAGE_LENGTH = 20000
 MAX_TITLE_LENGTH = 120
 MAX_CITATIONS = 10
+CHAT_RATE_LIMIT_WINDOW_MINUTES = 10
+MAX_USER_QUESTIONS_PER_WINDOW = 20
+
+
+class ChatRateLimitError(Exception):
+    """Raised when a learner exceeds the rolling chat-question limit."""
+
+    def __init__(self, retry_after_seconds: int):
+        self.retry_after_seconds = max(1, int(retry_after_seconds))
+        wait_minutes = max(1, (self.retry_after_seconds + 59) // 60)
+        super().__init__(
+            "You have reached the limit of "
+            f"{MAX_USER_QUESTIONS_PER_WINDOW} questions every "
+            f"{CHAT_RATE_LIMIT_WINDOW_MINUTES} minutes. "
+            f"Please try again in about {wait_minutes} minute(s)."
+        )
 
 
 def _validate_uuid(value: str | UUID, field_name: str) -> UUID:
@@ -433,6 +449,25 @@ def save_chat_message(
     with psycopg.connect(load_database_url()) as connection:
         with connection.cursor() as cursor:
 
+            if role == "user":
+                # Lock the learner row so concurrent submissions from the
+                # same account cannot all pass the rate check simultaneously.
+                cursor.execute(
+                    """
+                    SELECT user_id
+                    FROM users
+                    WHERE user_id = %s
+                      AND is_active = TRUE
+                    FOR UPDATE;
+                    """,
+                    (user_uuid,),
+                )
+
+                if cursor.fetchone() is None:
+                    raise LookupError(
+                        "An active learner account is required."
+                    )
+
             cursor.execute(
                 """
                 SELECT session_id
@@ -446,6 +481,53 @@ def save_chat_message(
 
             if cursor.fetchone() is None:
                 raise LookupError("Chat session was not found.")
+
+            if role == "user":
+                cursor.execute(
+                    """
+                    SELECT
+                        COUNT(*)::INTEGER,
+                        GREATEST(
+                            1,
+                            CEIL(
+                                EXTRACT(
+                                    EPOCH FROM (
+                                        MIN(cm.created_at)
+                                        + (%s * INTERVAL '1 minute')
+                                        - NOW()
+                                    )
+                                )
+                            )::INTEGER
+                        ) AS retry_after_seconds
+                    FROM chat_messages AS cm
+                    JOIN chat_sessions AS cs
+                      ON cs.session_id = cm.session_id
+                    WHERE cs.user_id = %s
+                      AND cm.role = 'user'
+                      AND cm.created_at >= (
+                          NOW() - (%s * INTERVAL '1 minute')
+                      );
+                    """,
+                    (
+                        CHAT_RATE_LIMIT_WINDOW_MINUTES,
+                        user_uuid,
+                        CHAT_RATE_LIMIT_WINDOW_MINUTES,
+                    ),
+                )
+                rate_row = cursor.fetchone()
+
+                if rate_row is None:
+                    raise RuntimeError(
+                        "The chat rate-limit query returned no result."
+                    )
+
+                recent_question_count = int(rate_row[0] or 0)
+
+                if recent_question_count >= MAX_USER_QUESTIONS_PER_WINDOW:
+                    retry_after_seconds = int(
+                        rate_row[1] or CHAT_RATE_LIMIT_WINDOW_MINUTES * 60
+                    )
+                    raise ChatRateLimitError(retry_after_seconds)
 
             cursor.execute(
                 """
