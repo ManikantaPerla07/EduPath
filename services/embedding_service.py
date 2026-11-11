@@ -273,19 +273,24 @@ def embed_pending_document_chunks(
             "skipped_due_to_concurrent_update": 0,
         }
 
-    # Create one API client and reuse it for all chunks.
+    # Import lazily because the LangChain adapter wraps this module's
+    # generate_document_embedding() function.
+    from services.langchain_embeddings import EduPathGeminiEmbeddings
+
+    # Create one API client and one LangChain embedding adapter for this
+    # document. Both are reused across all pending chunks.
     embedding_client = client if client is not None else _create_client()
+    embeddings = EduPathGeminiEmbeddings(
+        client=embedding_client,
+        document_title=source_title,
+    )
 
     saved_count = 0
     skipped_count = 0
 
     for chunk_id, content in pending_chunks:
 
-        vector = generate_document_embedding(
-            content=content,
-            title=source_title,
-            client=embedding_client,
-        )
+        vector = embeddings.embed_documents([content])[0]
 
         # Convert validated numeric values to pgvector's text format.
         vector_literal = (
