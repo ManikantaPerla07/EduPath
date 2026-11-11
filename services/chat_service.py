@@ -9,6 +9,7 @@ from uuid import UUID
 import psycopg
 from psycopg.types.json import Jsonb
 
+from services.agent_telemetry_service import MAX_ACTIVE_RUN_MINUTES
 from services.assessment_service import load_database_url
 from services.langgraph_checkpoint_service import (
     delete_langgraph_thread_checkpoints,
@@ -38,6 +39,10 @@ class ChatRateLimitError(Exception):
             f"{CHAT_RATE_LIMIT_WINDOW_MINUTES} minutes. "
             f"Please try again in about {wait_minutes} minute(s)."
         )
+
+
+class ChatSessionBusyError(RuntimeError):
+    """Raised when a live Tutor execution still uses the conversation."""
 
 
 def _validate_uuid(value: str | UUID, field_name: str) -> UUID:
@@ -724,6 +729,52 @@ def delete_chat_session(
 
             if session_row is None:
                 return False
+
+            # Expired run reservations no longer protect a conversation.
+            # Finalize them before deletion so telemetry does not retain an
+            # orphaned record that still appears to be running.
+            cursor.execute(
+                """
+                UPDATE agent_runs
+                SET
+                    status = 'stopped',
+                    completed_at = COALESCE(
+                        completed_at,
+                        statement_timestamp()
+                    )
+                WHERE session_id = %s
+                  AND status = 'running'
+                  AND started_at < (
+                      statement_timestamp()
+                      - (%s * INTERVAL '1 minute')
+                  );
+                """,
+                (session_uuid, MAX_ACTIVE_RUN_MINUTES),
+            )
+
+            # start_agent_run() takes the same chat_sessions row lock before
+            # creating a reservation. This check therefore cannot race with
+            # a new run starting for this conversation.
+            cursor.execute(
+                """
+                SELECT run_id
+                FROM agent_runs
+                WHERE session_id = %s
+                  AND status = 'running'
+                  AND started_at >= (
+                      statement_timestamp()
+                      - (%s * INTERVAL '1 minute')
+                  )
+                LIMIT 1;
+                """,
+                (session_uuid, MAX_ACTIVE_RUN_MINUTES),
+            )
+
+            if cursor.fetchone() is not None:
+                raise ChatSessionBusyError(
+                    "This conversation is currently generating a response. "
+                    "Wait for the response to finish before deleting it."
+                )
 
             delete_langgraph_thread_checkpoints(
                 thread_id=session_row[0],
