@@ -12,7 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from services.embedding_service import load_gemini_api_key
-from services.retrieval_service import search_knowledge_base
+from services.langchain_retriever import retrieve_course_chunks
 
 
 # Primary and fallback generation models.
@@ -461,7 +461,7 @@ def answer_question(
 
     question = _validate_question(question)
 
-    retrieved_chunks = search_knowledge_base(
+    retrieved_chunks = retrieve_course_chunks(
         query=question,
         course_slug=course_slug,
         topic_slug=topic_slug,
