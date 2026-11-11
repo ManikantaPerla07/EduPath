@@ -580,7 +580,10 @@ def fetch_active_study_plan(
                   AND u.is_active = TRUE
                   AND lp.adult_confirmation = TRUE
                   AND c.course_slug = %s
-                  AND c.is_published = TRUE
+                  AND (
+                      c.is_published = TRUE
+                      OR u.role = 'admin'
+                  )
                   AND p.status IN ('active', 'completed')
                 ORDER BY p.created_at DESC
                 LIMIT 1;
