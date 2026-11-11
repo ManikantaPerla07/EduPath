@@ -8,6 +8,7 @@ import psycopg
 import streamlit as st
 
 from ui.theme import render_page_header
+from services.course_service import is_course_published
 
 from services.study_plan_service import (
     fetch_active_study_plan,
@@ -271,37 +272,61 @@ def render_study_plan(learner):
         min(int(profile_daily_minutes), 600),
     )
 
-    with st.form("edupath_study_plan_form"):
-        left, right = st.columns(2)
+    # Administrators may inspect their own saved plan while the course is
+    # unpublished, but plan generation stays disabled until publication.
+    can_generate_plan = True
+    if learner.get("role") == "admin":
+        try:
+            can_generate_plan = is_course_published("python-basics")
+        except (ValueError, RuntimeError, psycopg.Error):
+            st.error(
+                "We couldn't verify course publication status. "
+                "Please refresh and try again."
+            )
+            return
 
-        plan_days = left.number_input(
-            "Plan duration (days)",
-            min_value=1,
-            max_value=30,
-            value=7,
-            step=1,
-            help=(
-                "The planner may extend this period when your daily "
-                "time is limited."
-            ),
-        )
+    plan_days = 7
+    daily_minutes = profile_daily_minutes
+    submitted = False
 
-        daily_minutes = right.number_input(
-            "Daily study target (minutes)",
-            min_value=10,
-            max_value=600,
-            value=profile_daily_minutes,
-            step=5,
-            help=(
-                "Defaults to the daily study target in your "
-                "learner profile."
-            ),
-        )
+    if can_generate_plan:
+        with st.form("edupath_study_plan_form"):
+            left, right = st.columns(2)
 
-        submitted = st.form_submit_button(
-            "Generate / refresh my study plan",
-            type="primary",
-            use_container_width=True,
+            plan_days = left.number_input(
+                "Plan duration (days)",
+                min_value=1,
+                max_value=30,
+                value=7,
+                step=1,
+                help=(
+                    "The planner may extend this period when your daily "
+                    "time is limited."
+                ),
+            )
+
+            daily_minutes = right.number_input(
+                "Daily study target (minutes)",
+                min_value=10,
+                max_value=600,
+                value=profile_daily_minutes,
+                step=5,
+                help=(
+                    "Defaults to the daily study target in your "
+                    "learner profile."
+                ),
+            )
+
+            submitted = st.form_submit_button(
+                "Generate / refresh my study plan",
+                type="primary",
+                width="stretch",
+            )
+    else:
+        st.info(
+            "Python Programming is currently unpublished. You can still "
+            "review your previously saved study plan, but creating a new "
+            "plan is paused until the course is published."
         )
 
     plan = None
@@ -348,10 +373,16 @@ def render_study_plan(learner):
             )
 
     if plan is None:
-        st.info(
-            "You don't have a study plan yet. Choose your schedule "
-            "above and generate your first personalized plan."
-        )
+        if can_generate_plan:
+            st.info(
+                "You don't have a study plan yet. Choose your schedule "
+                "above and generate your first personalized plan."
+            )
+        else:
+            st.info(
+                "There is no saved study plan for this course yet. "
+                "A new plan can be generated after the course is published."
+            )
         return
 
     _display_plan(plan, user_id)
