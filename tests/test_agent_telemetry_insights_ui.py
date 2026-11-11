@@ -51,7 +51,7 @@ class AgentTelemetryUITests(unittest.TestCase):
         show_dataframe,
         get_summary,
     ):
-        status_columns = [MagicMock() for _ in range(5)]
+        status_columns = [MagicMock() for _ in range(6)]
         health_columns = [MagicMock() for _ in range(3)]
         make_columns.side_effect = [status_columns, health_columns]
 
@@ -59,7 +59,8 @@ class AgentTelemetryUITests(unittest.TestCase):
             "total_runs": 42,
             "completed_runs": 30,
             "failed_runs": 5,
-            "running_runs": 4,
+            "running_runs": 2,
+            "stale_runs": 2,
             "stopped_runs": 3,
             "average_completed_duration_ms": 1250.0,
             "completed_share_percent": 78.947368,
@@ -71,6 +72,7 @@ class AgentTelemetryUITests(unittest.TestCase):
                     "completed_runs": 2,
                     "failed_runs": 0,
                     "running_runs": 1,
+                    "stale_runs": 0,
                     "stopped_runs": 0,
                     "average_completed_duration_ms": 1100.0,
                 }
@@ -89,6 +91,10 @@ class AgentTelemetryUITests(unittest.TestCase):
         )
         status_columns[0].metric.assert_called_once_with("Total runs", 42)
         status_columns[2].metric.assert_called_once_with("Failed", 5)
+        status_columns[4].metric.assert_called_once_with(
+            "Stale / long-running",
+            2,
+        )
         health_columns[0].metric.assert_called_once()
         health_columns[1].metric.assert_called_once()
         health_columns[2].metric.assert_called_once()
@@ -100,6 +106,7 @@ class AgentTelemetryUITests(unittest.TestCase):
                     "Completed": 2,
                     "Failed": 0,
                     "Running": 1,
+                    "Stale / long-running": 0,
                     "Stopped": 0,
                     "Avg. completed duration": "1.10 s",
                 }
