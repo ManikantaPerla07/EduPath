@@ -15,6 +15,7 @@ from services.chat_service import (
     get_chat_session,
     list_chat_sessions,
     rename_chat_session,
+    save_chat_feedback,
     save_chat_message,
 )
 
@@ -150,6 +151,24 @@ class ChatValidationTests(unittest.TestCase):
                 "assistant",
                 "Here is the answer.",
                 citations=["S1"],
+            )
+
+    def test_feedback_rejects_non_boolean_rating(self):
+        for rating in (0, 1, "helpful", None):
+            with self.subTest(rating=rating):
+                with self.assertRaises(ValueError):
+                    save_chat_feedback(
+                        str(USER_ID),
+                        str(MESSAGE_ID),
+                        rating,
+                    )
+
+    def test_feedback_rejects_invalid_message_id(self):
+        with self.assertRaises(ValueError):
+            save_chat_feedback(
+                str(USER_ID),
+                "not-a-uuid",
+                True,
             )
 
 
@@ -321,7 +340,15 @@ class ChatDatabaseTests(unittest.TestCase):
         second_query = cursor.execute.call_args_list[1].args[0]
         self.assertIn("ORDER BY created_at DESC, message_id DESC", second_query)
         self.assertIn("LIMIT %s", second_query)
-        self.assertIn("ORDER BY created_at ASC, message_id ASC", second_query)
+        self.assertIn(
+            "ORDER BY recent_messages.created_at ASC,",
+            second_query,
+        )
+        self.assertIn("chat_message_feedback", second_query)
+        self.assertEqual(
+            cursor.execute.call_args_list[1].args[1],
+            (SESSION_ID, 100, USER_ID),
+        )
 
     @patch("services.chat_service.load_database_url", return_value="test-db")
     @patch("services.chat_service.psycopg.connect")
@@ -341,6 +368,91 @@ class ChatDatabaseTests(unittest.TestCase):
             )
 
         cursor.execute.assert_called_once()
+
+    @patch("services.chat_service.load_database_url", return_value="test-db")
+    @patch("services.chat_service.psycopg.connect")
+    def test_get_messages_includes_saved_feedback(
+        self,
+        mock_connect,
+        mock_database_url,
+    ):
+        connection, cursor = make_database()
+        mock_connect.return_value = connection
+        cursor.fetchone.return_value = (SESSION_ID,)
+        cursor.fetchall.return_value = [(*message_row(), False)]
+
+        result = get_chat_messages(
+            str(USER_ID),
+            str(SESSION_ID),
+        )
+
+        self.assertIs(result[0]["feedback"], False)
+        query, parameters = cursor.execute.call_args_list[1].args
+        self.assertIn("feedback.user_id = %s", query)
+        self.assertEqual(parameters, (SESSION_ID, 100, USER_ID))
+
+
+    @patch("services.chat_service.load_database_url", return_value="test-db")
+    @patch("services.chat_service.psycopg.connect")
+    def test_saves_or_updates_feedback_for_owned_assistant_message(
+        self,
+        mock_connect,
+        mock_database_url,
+    ):
+        connection, cursor = make_database()
+        mock_connect.return_value = connection
+        cursor.fetchone.return_value = (
+            MESSAGE_ID,
+            USER_ID,
+            True,
+            NOW,
+            NOW,
+        )
+
+        result = save_chat_feedback(
+            str(USER_ID),
+            str(MESSAGE_ID),
+            True,
+        )
+
+        self.assertEqual(result["message_id"], str(MESSAGE_ID))
+        self.assertEqual(result["user_id"], str(USER_ID))
+        self.assertIs(result["is_helpful"], True)
+
+        query, parameters = cursor.execute.call_args.args
+        self.assertIn("cm.role = 'assistant'", query)
+        self.assertIn("cs.user_id = %s", query)
+        self.assertIn("ON CONFLICT (message_id) DO UPDATE", query)
+        self.assertIn(
+            "WHERE chat_message_feedback.user_id = EXCLUDED.user_id",
+            query,
+        )
+        self.assertEqual(parameters, (True, MESSAGE_ID, USER_ID))
+
+
+    @patch("services.chat_service.load_database_url", return_value="test-db")
+    @patch("services.chat_service.psycopg.connect")
+    def test_feedback_rejects_unowned_or_non_assistant_message(
+        self,
+        mock_connect,
+        mock_database_url,
+    ):
+        connection, cursor = make_database()
+        mock_connect.return_value = connection
+        cursor.fetchone.return_value = None
+
+        with self.assertRaises(LookupError):
+            save_chat_feedback(
+                str(USER_ID),
+                str(MESSAGE_ID),
+                False,
+            )
+
+        query, parameters = cursor.execute.call_args.args
+        self.assertIn("cs.user_id = %s", query)
+        self.assertIn("cm.role = 'assistant'", query)
+        self.assertEqual(parameters, (False, MESSAGE_ID, USER_ID))
+
 
     @patch("services.chat_service.load_database_url", return_value="test-db")
     @patch("services.chat_service.psycopg.connect")
