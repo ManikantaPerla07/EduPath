@@ -223,6 +223,7 @@ def create_chat_session(
         WHERE u.user_id = %s
           AND u.is_active = TRUE
           AND c.course_slug = %s
+        FOR SHARE OF u
         RETURNING
             session_id,
             user_id,
@@ -455,38 +456,28 @@ def save_chat_message(
     with psycopg.connect(load_database_url()) as connection:
         with connection.cursor() as cursor:
 
-            if role == "user":
-                # Lock the learner row so concurrent submissions from the
-                # same account cannot all pass the rate check simultaneously.
-                cursor.execute(
-                    """
-                    SELECT user_id
-                    FROM users
-                    WHERE user_id = %s
-                      AND is_active = TRUE
-                    FOR UPDATE;
-                    """,
-                    (user_uuid,),
-                )
-
-                if cursor.fetchone() is None:
-                    raise LookupError(
-                        "An active learner account is required."
-                    )
-
+            # Lock the active learner and owned session for every message
+            # write. This also prevents an in-flight Tutor response from
+            # being persisted after the account has been deactivated.
             cursor.execute(
                 """
-                SELECT session_id
-                FROM chat_sessions
-                WHERE session_id = %s
-                  AND user_id = %s
-                FOR UPDATE;
+                SELECT cs.session_id
+                FROM chat_sessions AS cs
+                JOIN users AS u
+                  ON u.user_id = cs.user_id
+                WHERE cs.session_id = %s
+                  AND cs.user_id = %s
+                  AND u.is_active = TRUE
+                FOR UPDATE OF u, cs;
                 """,
                 (session_uuid, user_uuid),
             )
 
             if cursor.fetchone() is None:
-                raise LookupError("Chat session was not found.")
+                raise LookupError(
+                    "An active learner account and an owned chat session "
+                    "are required."
+                )
 
             if role == "user":
                 cursor.execute(
@@ -703,6 +694,26 @@ def rename_chat_session(
     with psycopg.connect(load_database_url()) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
+                """
+                SELECT cs.session_id
+                FROM chat_sessions AS cs
+                JOIN users AS u
+                  ON u.user_id = cs.user_id
+                WHERE cs.session_id = %s
+                  AND cs.user_id = %s
+                  AND u.is_active = TRUE
+                FOR UPDATE OF u, cs;
+                """,
+                (session_uuid, user_uuid),
+            )
+
+            if cursor.fetchone() is None:
+                raise LookupError(
+                    "An active learner account and an owned chat session "
+                    "are required."
+                )
+
+            cursor.execute(
                 query,
                 (title, session_uuid, user_uuid),
             )
@@ -734,11 +745,14 @@ def delete_chat_session(
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT thread_id
-                FROM chat_sessions
-                WHERE session_id = %s
-                  AND user_id = %s
-                FOR UPDATE;
+                SELECT cs.thread_id
+                FROM chat_sessions AS cs
+                JOIN users AS u
+                  ON u.user_id = cs.user_id
+                WHERE cs.session_id = %s
+                  AND cs.user_id = %s
+                  AND u.is_active = TRUE
+                FOR UPDATE OF u, cs;
                 """,
                 (session_uuid, user_uuid),
             )
