@@ -94,7 +94,7 @@ def _handle_activity_update(user_id, item, new_status):
         )
 
 
-def _display_plan(plan, user_id):
+def _display_plan(plan, user_id, allow_updates=True):
     """Render a saved plan and its scheduled activities."""
 
     items = plan.get("items", [])
@@ -239,6 +239,12 @@ def _display_plan(plan, user_id):
                     button_label,
                     key=button_key,
                     width="content",
+                    disabled=not allow_updates,
+                    help=(
+                        None
+                        if allow_updates
+                        else "Activity changes are paused while the course is unpublished."
+                    ),
                 ):
                     _handle_activity_update(
                         user_id=user_id,
@@ -385,4 +391,8 @@ def render_study_plan(learner):
             )
         return
 
-    _display_plan(plan, user_id)
+    _display_plan(
+        plan,
+        user_id,
+        allow_updates=can_generate_plan,
+    )
