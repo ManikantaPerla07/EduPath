@@ -111,7 +111,7 @@ class AgentTelemetryUITests(unittest.TestCase):
                     "Avg. completed duration": "1.10 s",
                 }
             ],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
