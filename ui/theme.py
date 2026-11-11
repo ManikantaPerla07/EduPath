@@ -23,15 +23,20 @@ _THEME_CSS = """
 
 [data-testid="stHeader"] {
     background: rgba(245, 247, 251, 0.88);
+    box-shadow: none !important;
 }
 
-[data-testid="stToolbar"] {
-    right: 1.5rem;
-}
-
-/* Remove Streamlit's workspace-only deploy control from the learner UI. */
-[data-testid="stAppDeployButton"] {
+/* Hide Streamlit's menu, deploy and transient run-status controls. Keep the
+   header shell itself so Streamlit can still expose its sidebar collapse
+   control when the viewport is narrow. */
+#MainMenu,
+[data-testid="stMainMenu"],
+[data-testid="stAppDeployButton"],
+[data-testid="stStatusWidget"],
+[data-testid="stDecoration"] {
     display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
 }
 
 .block-container {
@@ -66,9 +71,14 @@ p, li, label, [data-testid="stMarkdownContainer"] {
     color: var(--edupath-muted);
 }
 
-/* Sidebar */
-[data-testid="stSidebar"] > div:first-child {
-    background: linear-gradient(180deg, #111d35 0%, #172744 100%);
+/* Sidebar background covers the full panel, including the empty lower area. */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #111d35 0%, #172744 100%) !important;
+}
+
+[data-testid="stSidebar"] > div:first-child,
+[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+    background: transparent !important;
     border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -98,7 +108,7 @@ p, li, label, [data-testid="stMarkdownContainer"] {
     border-color: rgba(226, 232, 240, 0.15);
 }
 
-/* Sidebar workspace navigation uses real buttons, not radio controls. */
+/* Sidebar workspace navigation uses keyed buttons with left-aligned labels. */
 .st-key-edupath_sidebar_nav [data-testid="stCaptionContainer"] {
     margin: 0 0 0.45rem;
     color: #b9c7dc !important;
@@ -114,15 +124,32 @@ p, li, label, [data-testid="stMarkdownContainer"] {
 
 .st-key-edupath_sidebar_nav [data-testid="stButton"] button {
     display: flex;
-    justify-content: flex-start;
+    justify-content: flex-start !important;
     width: 100%;
     min-height: 2.62rem;
     padding: 0.58rem 0.82rem;
     border-radius: 11px;
-    text-align: left;
+    text-align: left !important;
     font-size: 0.88rem;
     font-weight: 570;
     box-shadow: none !important;
+}
+
+.st-key-edupath_sidebar_nav [data-testid="stButton"] button > div {
+    display: flex !important;
+    justify-content: flex-start !important;
+    align-items: center;
+    width: 100%;
+}
+
+.st-key-edupath_sidebar_nav [data-testid="stButton"] button [data-testid="stMarkdownContainer"] {
+    width: 100%;
+    text-align: left !important;
+}
+
+.st-key-edupath_sidebar_nav [data-testid="stButton"] button p {
+    margin: 0;
+    text-align: left !important;
 }
 
 .st-key-edupath_sidebar_nav [data-testid="stBaseButton-secondary"] {
@@ -160,17 +187,41 @@ p, li, label, [data-testid="stMarkdownContainer"] {
     transform: none;
 }
 
-.st-key-edupath_sidebar_sign_out [data-testid="stButton"] button {
-    border-color: #d9e2ef !important;
+/* Sign-out has its own wrapper: force readable dark text on the light button,
+   including Streamlit's nested markdown paragraph. */
+.st-key-edupath_sidebar_signout [data-testid="stButton"] > button,
+.st-key-edupath_sidebar_signout [data-testid="stBaseButton-secondary"] {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    min-height: 2.72rem;
+    border: 1px solid #d9e2ef !important;
+    border-radius: 11px;
     color: #263650 !important;
     background: #ffffff !important;
-    font-weight: 680;
+    font-weight: 700;
+    opacity: 1 !important;
+    box-shadow: 0 1px 2px rgba(8, 18, 38, 0.10) !important;
 }
 
-.st-key-edupath_sidebar_sign_out [data-testid="stButton"] button:hover:not(:disabled) {
+.st-key-edupath_sidebar_signout [data-testid="stButton"] > button *,
+.st-key-edupath_sidebar_signout [data-testid="stBaseButton-secondary"] * {
+    color: #263650 !important;
+    -webkit-text-fill-color: #263650 !important;
+    opacity: 1 !important;
+}
+
+.st-key-edupath_sidebar_signout [data-testid="stButton"] > button:hover:not(:disabled),
+.st-key-edupath_sidebar_signout [data-testid="stBaseButton-secondary"]:hover:not(:disabled) {
     border-color: #aebcf5 !important;
-    color: #304bc4 !important;
-    background: #f4f6ff !important;
+    color: #243b96 !important;
+    background: #eef2ff !important;
+}
+
+.st-key-edupath_sidebar_signout [data-testid="stButton"] > button:hover:not(:disabled) *,
+.st-key-edupath_sidebar_signout [data-testid="stBaseButton-secondary"]:hover:not(:disabled) * {
+    color: #243b96 !important;
+    -webkit-text-fill-color: #243b96 !important;
 }
 
 .edupath-sidebar-brand {
