@@ -49,6 +49,48 @@ class TestAssessmentSessionService(unittest.TestCase):
 
         mock_fetch.assert_called_once()
 
+    @patch("services.assessment_session_service.fetch_question_records")
+    def test_unpublished_course_is_rejected_before_question_selection(
+        self,
+        fetch_questions,
+    ):
+        from unittest.mock import MagicMock
+
+        from services.assessment_service import load_database_url
+
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = [
+            ("11111111-1111-4111-8111-111111111111",),
+            ("22222222-2222-4222-8222-222222222222", False),
+        ]
+        connection = MagicMock()
+        connection.__enter__.return_value = connection
+        cursor_context = MagicMock()
+        cursor_context.__enter__.return_value = cursor
+        connection.cursor.return_value = cursor_context
+
+        with (
+            patch(
+                "services.assessment_session_service.psycopg.connect",
+                return_value=connection,
+            ),
+            patch(
+                "services.assessment_session_service.load_database_url",
+                return_value="postgresql://test",
+            ),
+        ):
+            with self.assertRaisesRegex(
+                PermissionError,
+                "not currently available",
+            ):
+                start_assessment(
+                    "11111111-1111-4111-8111-111111111111",
+                    "python-basics",
+                )
+
+        fetch_questions.assert_not_called()
+        self.assertEqual(cursor.execute.call_count, 2)
+
     def test_nonexistent_learner_is_rejected(self):
         # Use a random UUID. No fake learner account is inserted.
         with self.assertRaisesRegex(
