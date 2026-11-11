@@ -88,6 +88,11 @@ class CoursePublicationServiceTests(unittest.TestCase):
         self.assertEqual(len(result["topic_coverage"]), 9)
         self.assertEqual(result["active_question_count"], 27)
         self.assertEqual(result["fully_embedded_document_count"], 2)
+        topic_sql, topic_parameters = cursor.execute.call_args_list[2].args
+        self.assertIn("d.archived_at IS NULL", topic_sql)
+        self.assertIn("d.processing_status = 'ready'", topic_sql)
+        self.assertIn("ON dcs.topic_id = t.topic_id", topic_sql)
+        self.assertEqual(topic_parameters, (COURSE_ID, COURSE_ID))
         self.assertTrue(result["ready_to_publish"])
         self.assertFalse(result["is_published"])
 
