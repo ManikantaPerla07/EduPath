@@ -12,6 +12,7 @@ EduPath is an AI-powered learning platform for beginner Python programming. It c
 - **Learning progress:** tracks attempts, accuracy, and topic mastery status.
 - **Personalized study plan:** schedules learning, practice, revision, and spaced-review activities based on assessment evidence, prerequisites, learning goals, and available study time.
 - **Persistent conversations and plans:** stores learner chat history, study-plan activity status, and per-chat LangGraph checkpoints in Neon. Deleting a conversation also deletes its checkpoint state.
+- **Administrator Knowledge Management:** active administrators can upload PDF, TXT and Markdown resources, associate them with course topics, inspect extraction/chunk/embedding status, retry failed extraction, and generate missing embeddings. Administrative operations re-check the account role in PostgreSQL.
 
 ## Technology stack
 
@@ -75,7 +76,8 @@ EduPath/
 │   ├── langchain_retriever.py           # Neon pgvector retriever adapter
 │   └── ...                              # Application and domain services
 ├── tests/                  # Automated tests
-├── ui/                     # Streamlit learner interfaces
+├── ui/                     # Streamlit learner and administrator interfaces
+│   ├── knowledge_management.py # Admin-only resource upload and processing status
 ├── .streamlit/
 │   ├── config.toml
 │   └── secrets.toml.example
@@ -172,7 +174,34 @@ python database\seed_questions.py
 
 Run these commands only against the intended development or demo database. The course seed script creates the course with `is_published = FALSE`; the current learner UI uses the fixed `python-basics` course slug and does not currently provide a course-publishing administration screen. Verify the intended course-access policy before making a public deployment.
 
-### 6. Start the app
+### 6. Grant an administrator role for local resource management
+
+New accounts receive the `student` role. A trusted database operator must explicitly promote an existing account before the **Knowledge Management** navigation item appears. There is no self-service role assignment in the learner UI.
+
+First, find the exact account in the Neon SQL Editor:
+
+```sql
+SELECT user_id, email, role, is_active
+FROM users
+WHERE LOWER(email) = LOWER('your-google-email@example.com')
+  AND email_verified = TRUE
+  AND is_active = TRUE;
+```
+
+After verifying that the result is exactly the intended account, promote that exact UUID:
+
+```sql
+UPDATE users
+SET role = 'admin',
+    updated_at = NOW()
+WHERE user_id = 'paste-the-verified-user-uuid'
+  AND is_active = TRUE
+RETURNING user_id, email, role;
+```
+
+Sign out and sign in again. The Knowledge Management page and its document operations independently verify the active administrator role in PostgreSQL.
+
+### 7. Start the app
 
 ```powershell
 python -m streamlit run app.py
@@ -186,11 +215,11 @@ From the repository root with the virtual environment activated:
 
 ```powershell
 python -m pytest -q
-python -m compileall -q services tests
+python -m compileall -q agents services ui tests
 git diff --check
 ```
 
-The most recent recorded verification during development was **356 passed, 19 subtests passed**. Re-run the tests after changes; this number is a historical result, not a guarantee for future code revisions.
+The latest developer-verified baseline before the administrator Knowledge Management milestone was **421 passed, 31 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
 
 ## Deploy to Streamlit Community Cloud
 
@@ -208,7 +237,7 @@ Keep all credentials in Streamlit's secrets settings. Do not commit or share a p
 
 ## Current scope and limitations
 
-The current MVP focuses on beginner Python programming, with nine topics and a seeded question bank of 27 multiple-choice questions (nine easy, nine medium, and nine hard). It is a learner-facing application; a general-purpose instructor or course-authoring administration interface is not included.
+The current MVP focuses on beginner Python programming, with nine topics and a seeded question bank of 27 multiple-choice questions (nine easy, nine medium, and nine hard). The current administrator interface covers shared document ingestion, processing status and embedding recovery. Course authoring, course publication controls, resource deletion/archival, and general-purpose instructor analytics are not included yet.
 
 ## Development history
 
