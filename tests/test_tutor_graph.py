@@ -1,7 +1,7 @@
 """Tests for the LangGraph-based EduPath tutor workflow."""
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from agents.tutor_graph import run_tutor_graph
 
@@ -404,6 +404,88 @@ class TestTutorGraph(unittest.TestCase):
                 )
 
             resolve.assert_not_called()
+
+
+    def test_persistent_session_uses_owned_thread_id_and_checkpointer(self):
+        user_id = "ea181992-f802-4528-ae24-10b7e198d8a2"
+        session_id = "11111111-1111-4111-8111-111111111111"
+        thread_id = "22222222-2222-4222-8222-222222222222"
+        expected_result = {
+            "answer": "A variable stores a value. [S1]",
+            "insufficient_evidence": False,
+            "citations": [{"source_id": "S1"}],
+            "retrieved_count": 1,
+            "model": "test-model",
+            "reason": None,
+        }
+
+        checkpointer = object()
+        checkpointer_context = MagicMock()
+        checkpointer_context.__enter__.return_value = checkpointer
+        checkpointer_context.__exit__.return_value = False
+
+        graph = MagicMock()
+        graph.invoke.return_value = {"answer_result": expected_result}
+
+        with (
+            patch(
+                "agents.tutor_graph.get_chat_session",
+                return_value={"thread_id": thread_id},
+            ) as get_session,
+            patch(
+                "agents.tutor_graph.open_langgraph_checkpointer",
+                return_value=checkpointer_context,
+            ) as open_checkpointer,
+            patch(
+                "agents.tutor_graph.build_tutor_graph",
+                return_value=graph,
+            ) as build_graph,
+        ):
+            result = run_tutor_graph(
+                question="What is a variable?",
+                course_slug="python-basics",
+                user_id=user_id,
+                session_id=session_id,
+            )
+
+        self.assertEqual(result, expected_result)
+        get_session.assert_called_once_with(
+            user_id=user_id,
+            session_id=session_id,
+        )
+        open_checkpointer.assert_called_once_with()
+        build_graph.assert_called_once_with(
+            client=None,
+            checkpointer=checkpointer,
+        )
+        graph.invoke.assert_called_once_with(
+            {
+                "question": "What is a variable?",
+                "course_slug": "python-basics",
+                "topic_slug": None,
+                "limit": 5,
+                "conversation_history": [],
+                "user_id": user_id,
+            },
+            config={"configurable": {"thread_id": thread_id}},
+        )
+
+    @patch("agents.tutor_graph.get_chat_session")
+    def test_persistent_session_requires_authenticated_user_id(
+        self,
+        get_session,
+    ):
+        with self.assertRaisesRegex(
+            ValueError,
+            "learner user ID is required",
+        ):
+            run_tutor_graph(
+                question="What is a variable?",
+                course_slug="python-basics",
+                session_id="11111111-1111-4111-8111-111111111111",
+            )
+
+        get_session.assert_not_called()
 
 
 if __name__ == "__main__":
