@@ -282,7 +282,7 @@ def _render_conversation_settings(
 
             rename_submitted = st.form_submit_button(
                 "Save title",
-                use_container_width=True,
+                width="stretch",
             )
 
         if rename_submitted:
@@ -324,7 +324,7 @@ def _render_conversation_settings(
             key=f"edupath_delete_button_{session_id}",
             type="secondary",
             disabled=not confirmed,
-            use_container_width=True,
+            width="stretch",
         ):
             try:
                 deleted = delete_chat_session(
@@ -380,7 +380,7 @@ def _render_conversation_controls(
         if st.button(
             "＋ New chat",
             key="edupath_tutor_new_chat_button",
-            use_container_width=True,
+            width="stretch",
         ):
             _start_new_chat()
 
