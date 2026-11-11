@@ -62,11 +62,11 @@ class AgentTelemetryInsightsDatabaseTests(unittest.TestCase):
         today = date.today()
         cursor.fetchone.side_effect = [
             ("admin",),
-            (42, 30, 5, 4, 3, 1250.0),
+            (42, 30, 5, 2, 2, 3, 1250.0),
         ]
         cursor.fetchall.return_value = [
-            (today - timedelta(days=1), 2, 1, 1, 0, 0, 950.0),
-            (today, 3, 2, 0, 1, 0, 1100.0),
+            (today - timedelta(days=1), 2, 1, 1, 0, 0, 0, 950.0),
+            (today, 3, 2, 0, 1, 0, 0, 1100.0),
         ]
 
         result = get_agent_run_summary(
@@ -78,7 +78,8 @@ class AgentTelemetryInsightsDatabaseTests(unittest.TestCase):
         self.assertEqual(result["total_runs"], 42)
         self.assertEqual(result["completed_runs"], 30)
         self.assertEqual(result["failed_runs"], 5)
-        self.assertEqual(result["running_runs"], 4)
+        self.assertEqual(result["running_runs"], 2)
+        self.assertEqual(result["stale_runs"], 2)
         self.assertEqual(result["stopped_runs"], 3)
         self.assertEqual(
             result["average_completed_duration_ms"],
@@ -94,7 +95,9 @@ class AgentTelemetryInsightsDatabaseTests(unittest.TestCase):
         )
         self.assertEqual(len(result["trend"]), 2)
         self.assertEqual(result["trend"][0]["total_runs"], 2)
+        self.assertEqual(result["trend"][0]["stale_runs"], 0)
         self.assertEqual(result["trend"][1]["completed_runs"], 2)
+        self.assertEqual(result["trend"][1]["running_runs"], 1)
 
         self.assertEqual(cursor.execute.call_count, 3)
         self.assertEqual(
@@ -113,6 +116,8 @@ class AgentTelemetryInsightsDatabaseTests(unittest.TestCase):
         summary_sql = cursor.execute.call_args_list[1].args[0]
         trend_sql = cursor.execute.call_args_list[2].args[0]
         self.assertIn("ar.status = 'completed'", summary_sql)
+        self.assertIn("INTERVAL '15 minutes'", summary_sql)
+        self.assertIn("INTERVAL '15 minutes'", trend_sql)
         self.assertIn("generate_series", trend_sql)
         for private_field in (
             "ar.user_id",
@@ -159,7 +164,7 @@ class AgentTelemetryInsightsDatabaseTests(unittest.TestCase):
         mock_connect.return_value = connection
         cursor.fetchone.side_effect = [
             ("admin",),
-            (0, 0, 0, 0, 0, None),
+            (0, 0, 0, 0, 0, 0, None),
         ]
         cursor.fetchall.return_value = []
 
