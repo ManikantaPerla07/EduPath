@@ -21,8 +21,12 @@ from ui.agent_telemetry import render_agent_telemetry
 st.set_page_config(
     page_title="EduPath | Personalized Tutoring",
     page_icon="🎓",
-    layout="centered",
+    layout="wide",
 )
+
+from ui.theme import apply_theme, render_page_header
+
+apply_theme()
 
 
 class GoogleSessionExpired(Exception):
@@ -30,25 +34,54 @@ class GoogleSessionExpired(Exception):
 
 
 def login_screen():
-    """Display the Google login screen."""
+    """Display a polished, responsive Google sign-in experience."""
 
-    st.title("🎓 EduPath")
-    st.subheader("Your Personalized Tutoring Agent")
+    left, right = st.columns([1.15, 0.85], gap="large")
 
-    st.write(
-        "Learn Python step by step with personalized explanations, "
-        "assessments, and study guidance."
-    )
+    with left:
+        st.markdown(
+            """
+            <div class="edupath-login-wrap">
+                <div class="edupath-brand-mark">E</div>
+                <div class="edupath-login-kicker">PERSONALIZED PYTHON LEARNING</div>
+                <h1 class="edupath-login-title">
+                    Learn with a plan.<br>Grow with every step.
+                </h1>
+                <p class="edupath-login-copy">
+                    A focused learning space that brings together guided
+                    explanations, adaptive practice, and a study plan shaped
+                    around your progress.
+                </p>
+                <div class="edupath-login-points">
+                    <span>Guided AI tutoring</span>
+                    <span>Adaptive assessments</span>
+                    <span>Personalized study plans</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    st.divider()
-    st.info("Sign in with your Google account to continue.")
-
-    st.button(
-        "Continue with Google",
-        on_click=st.login,
-        type="primary",
-        use_container_width=True,
-    )
+    with right:
+        with st.container(border=True):
+            st.markdown(
+                '<div class="edupath-eyebrow">WELCOME TO EDUPATH</div>',
+                unsafe_allow_html=True,
+            )
+            st.header("Sign in to continue")
+            st.write(
+                "Use your Google account to access your learning dashboard, "
+                "tutor conversations, assessments, and saved progress."
+            )
+            st.button(
+                "Continue with Google",
+                on_click=st.login,
+                type="primary",
+                use_container_width=True,
+            )
+            st.caption(
+                "Your learning activity is saved to your private EduPath account."
+            )
 
 
 def get_authenticated_google_claims():
@@ -358,13 +391,22 @@ def render_learning_progress(learner):
 
 
 def home_screen(learner):
-    """Display the authenticated learner dashboard and navigation."""
+    """Display the learner dashboard and role-aware application navigation."""
 
-    learner_name = learner["display_name"] or "Learner"
+    learner_name = learner.get("display_name") or "Learner"
 
-    # Sidebar navigation.
-    st.sidebar.title("🎓 EduPath")
-    st.sidebar.caption("Personalized Tutoring Agent")
+    st.sidebar.markdown(
+        """
+        <div class="edupath-sidebar-brand">
+            <div class="edupath-brand-mark">E</div>
+            <div>
+                <div class="edupath-sidebar-name">EduPath</div>
+                <div class="edupath-sidebar-subtitle">Personal learning space</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.sidebar.divider()
 
     navigation_options = [
@@ -375,34 +417,38 @@ def home_screen(learner):
     ]
 
     if learner.get("role") == "admin":
-        navigation_options.extend([
-            "Knowledge Management",
-            "AI Tutor Feedback",
-            "AI Tutor Operations",
-        ])
+        navigation_options.extend(
+            [
+                "Knowledge Management",
+                "AI Tutor Feedback",
+                "AI Tutor Operations",
+            ]
+        )
 
     selected_page = st.sidebar.radio(
-        "Navigation",
+        "Workspace",
         options=navigation_options,
         key="edupath_navigation",
     )
 
     st.sidebar.divider()
 
-    if learner["email"]:
+    if learner.get("email"):
         st.sidebar.caption(f"Signed in as {learner['email']}")
+
+    role_label = "Administrator" if learner.get("role") == "admin" else "Learner"
+    st.sidebar.caption(f"Account type · {role_label}")
 
     st.sidebar.button(
         "Sign out",
         on_click=logout_user,
         use_container_width=True,
     )
-    # Open the AI Tutor interface.
+
     if selected_page == "AI Tutor":
         render_tutor(learner)
         return
 
-    # Open the assessment interface.
     if selected_page == "Python Assessment":
         render_assessment(learner)
         return
@@ -432,43 +478,49 @@ def home_screen(learner):
         render_agent_telemetry(learner)
         return
 
-    # Main learner dashboard.
-    st.title("🎓 EduPath")
-    st.subheader(f"Welcome, {learner_name}!")
-    st.success("Your learner account is connected successfully.")
-
-    st.divider()
-    st.header("Your learning journey")
-
-    st.write(
-        "Welcome to your personalized Python learning environment. "
-        "Start by evaluating your current Python knowledge."
+    escaped_name = __import__("html").escape(str(learner_name))
+    render_page_header(
+        "LEARNER WORKSPACE",
+        f"Welcome back, {learner_name}",
+        "Your Python learning journey, progress, and next steps in one place.",
     )
 
-    st.subheader("Python Programming")
-    st.write(
-        "Assess your understanding of variables, operators, "
-        "conditionals, loops, functions, collections, strings "
-        "and problem solving."
+    st.markdown(
+        f"""
+        <div class="edupath-dashboard-hero">
+            <div class="eyebrow">YOUR FEATURED COURSE</div>
+            <h2>Build a strong foundation in Python.</h2>
+            <p>
+                Learn core programming concepts through guided explanations,
+                focused practice, and a study plan informed by your progress.
+            </p>
+            <div class="edupath-hero-stats">
+                <span class="edupath-hero-stat">9 learning topics</span>
+                <span class="edupath-hero-stat">27 assessment questions</span>
+                <span class="edupath-hero-stat">Personalized study guidance</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    st.info(
-        "Your diagnostic assessment contains 27 multiple-choice "
-        "questions covering all nine Python topics."
-    )
+    st.markdown("")
+    action_columns = st.columns(2)
 
-    st.button(
-        "Explore Python Assessment →",
-        type="primary",
-        use_container_width=True,
-        on_click=navigate_to_assessment,
-    )
+    with action_columns[0]:
+        st.button(
+            "Start Python assessment",
+            type="primary",
+            use_container_width=True,
+            on_click=navigate_to_assessment,
+        )
 
-    st.button(
-        "Create or view your study plan →",
-        use_container_width=True,
-        on_click=navigate_to_study_plan,
-    )
+    with action_columns[1]:
+        st.button(
+            "View my study plan",
+            use_container_width=True,
+            on_click=navigate_to_study_plan,
+        )
 
     if st.session_state.pop("edupath_open_assessment", False):
         st.session_state["edupath_navigation"] = "Python Assessment"
@@ -479,6 +531,7 @@ def home_screen(learner):
 
     st.divider()
     st.subheader("Your learning profile")
+    st.caption("Your saved preferences and daily learning target.")
 
     with st.expander("View profile details"):
         col1, col2 = st.columns(2)
