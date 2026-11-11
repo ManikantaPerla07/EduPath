@@ -234,11 +234,11 @@ From the repository root with the virtual environment activated:
 
 ```powershell
 python -m pytest -q
-python -m compileall -q agents services ui tests
+python -m compileall -q agents services ui tests evaluation
 git diff --check
 ```
 
-The latest user-verified full-suite result before the agent-run telemetry milestone was **492 passed, 68 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
+The latest user-verified full-suite result before the per-conversation Tutor run protection refinement was **521 passed, 77 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
 
 ## Evaluate RAG retrieval
 
