@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import AIMessage
+from langgraph.checkpoint.memory import MemorySaver
 
 from agents.tutor_graph import build_tutor_graph, run_tutor_graph
 
@@ -519,6 +520,18 @@ class FakeLearnerToolModel:
         return self.response
 
 
+class SequenceFakeLearnerToolModel:
+
+    def __init__(self, responses):
+        self.responses = list(responses)
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        return self.responses.pop(0)
+
+
 class LearnerToolGraphTests(unittest.TestCase):
 
     USER_ID = "ea181992-f802-4528-ae24-10b7e198d8a2"
@@ -742,6 +755,101 @@ class LearnerToolGraphTests(unittest.TestCase):
             1,
         )
         self.assertFalse(state["answer_result"]["insufficient_evidence"])
+
+
+    @patch("agents.learner_tools.fetch_learner_topic_progress")
+    @patch("agents.tutor_graph.resolve_contextual_question")
+    @patch("agents.tutor_graph.retrieve_course_chunks", return_value=[])
+    @patch("agents.tutor_graph.generate_grounded_answer")
+    def test_previous_turn_tool_data_is_cleared_in_same_checkpointed_thread(
+        self,
+        generate,
+        retrieve,
+        resolve,
+        fetch_progress,
+    ):
+        tool_model = SequenceFakeLearnerToolModel(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "get_my_learning_progress",
+                            "args": {},
+                            "id": "first_progress_call",
+                            "type": "tool_call",
+                        }
+                    ],
+                ),
+                AIMessage(content="No learner data is needed for this question."),
+            ]
+        )
+        fetch_progress.return_value = [
+            {
+                "topic_slug": "variables-data-types",
+                "topic_name": "Variables and Data Types",
+                "total_attempts": 5,
+                "correct_answers": 4,
+                "accuracy_percent": 80,
+                "mastery_score": 80,
+                "mastery_status": "candidate_for_mastery",
+                "last_attempted_at": None,
+            }
+        ]
+        generate.side_effect = [
+            {
+                "answer": "Your accuracy is 80%.",
+                "insufficient_evidence": False,
+                "citations": [],
+                "retrieved_count": 0,
+                "model": "test-model",
+                "reason": None,
+                "learner_context_used": True,
+            },
+            {
+                "answer": "Insufficient approved course material.",
+                "insufficient_evidence": True,
+                "citations": [],
+                "retrieved_count": 0,
+                "model": "test-model",
+                "reason": "no_retrieved_evidence",
+            },
+        ]
+        resolve.side_effect = (
+            lambda question, conversation_history, client: question
+        )
+
+        graph = build_tutor_graph(
+            checkpointer=MemorySaver(),
+            enable_tools=True,
+            tool_model=tool_model,
+        )
+        config = {
+            "configurable": {
+                "thread_id": "22222222-2222-4222-8222-222222222222"
+            }
+        }
+
+        first_state = graph.invoke(
+            self._graph_input("How am I doing in Python?"),
+            config=config,
+        )
+        second_state = graph.invoke(
+            self._graph_input("Explain decorators."),
+            config=config,
+        )
+
+        self.assertIn("learner_context", first_state)
+        self.assertTrue(first_state["learner_context"])
+        self.assertEqual(second_state["learner_context"], {})
+        self.assertTrue(second_state["answer_result"]["insufficient_evidence"])
+        self.assertEqual(generate.call_count, 2)
+        self.assertIn("learner_context", generate.call_args_list[0].kwargs)
+        self.assertNotIn("learner_context", generate.call_args_list[1].kwargs)
+        fetch_progress.assert_called_once_with(
+            user_id=self.USER_ID,
+            course_slug="python-basics",
+        )
 
 
 if __name__ == "__main__":
