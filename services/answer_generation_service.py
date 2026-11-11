@@ -12,6 +12,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from services.embedding_service import load_gemini_api_key
+from services.gemini_error_utils import (
+    RETRYABLE_GEMINI_STATUS_CODES,
+    is_retryable_gemini_error,
+)
 from services.langchain_retriever import retrieve_course_chunks
 
 
@@ -20,7 +24,7 @@ GENERATION_MODEL = "gemini-3.8-flash"
 FALLBACK_GENERATION_MODEL = "gemini-3.5-flash-lite"
 
 # Only temporary server errors trigger a model fallback.
-RETRYABLE_SERVER_ERRORS = {500, 502, 503, 504}
+RETRYABLE_SERVER_ERRORS = RETRYABLE_GEMINI_STATUS_CODES
 
 MAX_CONTEXT_SOURCES = 5
 MAX_QUESTION_LENGTH = 2000
@@ -284,12 +288,11 @@ def _generate_with_fallback(
 
         except Exception as exc:
 
-            status_code = getattr(exc, "code", None)
-
-            # Only retry a temporary server error from the primary model.
+            # Switch models only for temporary server responses or
+            # recognized HTTP transport interruptions.
             can_use_fallback = (
                 index == 0
-                and status_code in RETRYABLE_SERVER_ERRORS
+                and is_retryable_gemini_error(exc)
             )
 
             if can_use_fallback:
@@ -342,18 +345,9 @@ def _generate_with_langchain_fallback(
             return answer, model_name
 
         except Exception as exc:
-            status_code = getattr(exc, "code", None)
-
-            if status_code is None:
-                status_code = getattr(exc, "status_code", None)
-
-            if status_code is None:
-                response = getattr(exc, "response", None)
-                status_code = getattr(response, "status_code", None)
-
             can_use_fallback = (
                 index == 0
-                and status_code in RETRYABLE_SERVER_ERRORS
+                and is_retryable_gemini_error(exc)
             )
 
             if can_use_fallback:
