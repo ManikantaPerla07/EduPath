@@ -216,6 +216,12 @@ def adult_confirmation_screen(learner):
                 st.success("Age confirmation saved successfully.")
                 st.rerun()
 
+            except PermissionError:
+                st.error(
+                    "This EduPath account is inactive. "
+                    "Please contact an administrator."
+                )
+
             except (ValueError, psycopg.Error):
                 st.error(
                     "We could not save your confirmation. "
