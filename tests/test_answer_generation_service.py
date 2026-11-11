@@ -522,5 +522,112 @@ class AdaptiveTeachingPromptTests(unittest.TestCase):
         client.models.generate_content.assert_not_called()
 
 
+class LearnerContextAnswerTests(unittest.TestCase):
+
+    def test_empty_retrieval_can_answer_from_trusted_learner_context(self):
+        client = make_client(
+            "You attempted 5 questions in Variables and Data Types, "
+            "answered 4 correctly, and have 80% accuracy."
+        )
+        learner_context = {
+            "learning_progress": {
+                "topic_count": 1,
+                "topics": [
+                    {
+                        "topic_name": "Variables and Data Types",
+                        "total_attempts": 5,
+                        "correct_answers": 4,
+                        "accuracy_percent": 80.0,
+                        "mastery_status": "candidate_for_mastery",
+                    }
+                ],
+            }
+        }
+
+        result = generate_grounded_answer(
+            question="How am I doing in Variables and Data Types?",
+            retrieved_chunks=[],
+            client=client,
+            learner_context=learner_context,
+        )
+
+        self.assertFalse(result["insufficient_evidence"])
+        self.assertEqual(result["citations"], [])
+        self.assertEqual(result["retrieved_count"], 0)
+        self.assertTrue(result["learner_context_used"])
+        self.assertIn("80% accuracy", result["answer"])
+
+        prompt = client.models.generate_content.call_args.kwargs["contents"]
+        self.assertIn("AUTHENTICATED LEARNER ACCOUNT DATA", prompt)
+        self.assertIn("candidate_for_mastery", prompt)
+        self.assertIn("LEARNER QUESTION", prompt)
+
+    def test_learner_data_is_separate_from_course_evidence(self):
+        client = make_client(
+            "Python variables are created when values are assigned. [S1]"
+        )
+        learner_context = {
+            "learning_progress": {
+                "topics": [
+                    {
+                        "topic_name": "Variables and Data Types",
+                        "accuracy_percent": 80.0,
+                    }
+                ]
+            }
+        }
+
+        result = generate_grounded_answer(
+            question="Explain variables and tell me my progress.",
+            retrieved_chunks=[make_chunk()],
+            client=client,
+            learner_context=learner_context,
+        )
+
+        self.assertFalse(result["insufficient_evidence"])
+        self.assertEqual(len(result["citations"]), 1)
+
+        call = client.models.generate_content.call_args
+        prompt = call.kwargs["contents"]
+        system_instruction = call.kwargs["config"].system_instruction
+
+        self.assertIn("AUTHENTICATED LEARNER ACCOUNT DATA", prompt)
+        self.assertIn("EDUCATIONAL SOURCE EXCERPTS", prompt)
+        self.assertIn("Do not use it as evidence for Python/course explanations", system_instruction)
+        self.assertIn("Personal learner-data statements do not use course citations", system_instruction)
+
+    def test_course_answer_still_requires_citations_with_learner_data(self):
+        client = make_client("Variables store values.")
+        learner_context = {
+            "learning_progress": {
+                "topics": [{"topic_name": "Variables", "accuracy_percent": 80.0}]
+            }
+        }
+
+        result = generate_grounded_answer(
+            question="Explain variables and my progress.",
+            retrieved_chunks=[make_chunk()],
+            client=client,
+            learner_context=learner_context,
+        )
+
+        self.assertTrue(result["insufficient_evidence"])
+        self.assertEqual(result["reason"], "answer_missing_citations")
+        self.assertEqual(result["citations"], [])
+
+    def test_rejects_empty_learner_context(self):
+        client = make_client()
+
+        with self.assertRaisesRegex(ValueError, "Learner context"):
+            generate_grounded_answer(
+                question="How am I doing?",
+                retrieved_chunks=[],
+                client=client,
+                learner_context={},
+            )
+
+        client.models.generate_content.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
