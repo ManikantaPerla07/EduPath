@@ -86,6 +86,36 @@ class EmbeddingStorageTests(unittest.TestCase):
 
         self.assertEqual(cursor.execute.call_count, 1)
 
+    def test_archived_document_cannot_be_embedded(self):
+        from datetime import datetime, timezone
+
+        cursor = MagicMock()
+        cursor.fetchone.return_value = (
+            SOURCE_TITLE,
+            "ready",
+            datetime(2026, 11, 11, tzinfo=timezone.utc),
+        )
+        connection = make_connection(cursor)
+
+        with (
+            patch(
+                "services.embedding_service.load_database_url",
+                return_value="postgresql://test",
+            ),
+            patch(
+                "services.embedding_service.psycopg.connect",
+                return_value=connection,
+            ),
+            patch(
+                "services.embedding_service._create_client"
+            ) as create_client,
+        ):
+            with self.assertRaisesRegex(ValueError, "Archived documents"):
+                embed_pending_document_chunks(DOCUMENT_ID)
+
+        self.assertEqual(cursor.execute.call_count, 1)
+        create_client.assert_not_called()
+
     def test_saves_embedding_for_stored_chunk(self):
         fetch_cursor = MagicMock()
         fetch_cursor.fetchone.side_effect = [
