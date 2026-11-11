@@ -135,6 +135,7 @@ class AdminDocumentListingTests(unittest.TestCase):
             None,
             created_at,
             created_at,
+            None,
             "Variables and Data Types",
             8,
             5,
@@ -198,6 +199,7 @@ class FailedDocumentRetryTests(unittest.TestCase):
                 b"Python variables",
                 "Python Notes",
                 "failed",
+                None,
             ),
         ]
         first_connection = make_connection(first_cursor)
@@ -255,7 +257,7 @@ class FailedDocumentRetryTests(unittest.TestCase):
         first_cursor = make_cursor()
         first_cursor.fetchone.side_effect = [
             ("admin",),
-            ("python.txt", "txt", b"bad stored text", "Notes", "failed"),
+            ("python.txt", "txt", b"bad stored text", "Notes", "failed", None),
         ]
         first_connection = make_connection(first_cursor)
 
@@ -290,7 +292,7 @@ class FailedDocumentRetryTests(unittest.TestCase):
         cursor = make_cursor()
         cursor.fetchone.side_effect = [
             ("admin",),
-            ("python.txt", "txt", b"Python", "Notes", "ready"),
+            ("python.txt", "txt", b"Python", "Notes", "ready", None),
         ]
         connection = make_connection(cursor)
 
