@@ -12,6 +12,7 @@ from services.answer_generation_service import (
     FALLBACK_GENERATION_MODEL,
     GENERATION_MODEL,
 )
+from services.agent_telemetry_service import AgentRunAlreadyActiveError
 
 
 class TestTutorGraph(unittest.TestCase):
@@ -506,6 +507,38 @@ class TestTutorGraph(unittest.TestCase):
             },
             config={"configurable": {"thread_id": thread_id}},
         )
+
+    @patch("agents.tutor_graph.get_chat_session")
+    @patch(
+        "agents.tutor_graph.start_agent_run",
+        side_effect=AgentRunAlreadyActiveError("Conversation is busy."),
+    )
+    @patch("agents.tutor_graph.build_tutor_graph")
+    def test_overlapping_persistent_run_is_rejected_before_graph_execution(
+        self,
+        build_graph,
+        start_run,
+        get_session,
+    ):
+        user_id = "123e4567-e89b-12d3-a456-426614174000"
+        session_id = "11111111-1111-4111-8111-111111111111"
+        get_session.return_value = {
+            "thread_id": "22222222-2222-4222-8222-222222222222"
+        }
+
+        with self.assertRaises(AgentRunAlreadyActiveError):
+            run_tutor_graph(
+                question="What is a variable?",
+                course_slug="python-basics",
+                user_id=user_id,
+                session_id=session_id,
+            )
+
+        start_run.assert_called_once_with(
+            user_id=user_id,
+            session_id=session_id,
+        )
+        build_graph.assert_not_called()
 
     @patch("agents.tutor_graph.get_chat_session")
     @patch("agents.tutor_graph.start_agent_run", return_value="run-123")
