@@ -1,6 +1,8 @@
 
 """Streamlit interface for the EduPath conversational AI tutor."""
 
+import logging
+
 import psycopg
 import streamlit as st
 
@@ -18,6 +20,9 @@ from services.chat_service import (
     rename_chat_session,
     save_chat_message,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 COURSE_SLUG = "python-basics"
@@ -469,6 +474,9 @@ def _process_question(
         )
 
     except (AnswerGenerationError, ConversationContextError):
+        logger.exception(
+            "Tutor request failed during model or conversation-context processing."
+        )
         st.error(
             "The Tutor could not process your question right now. "
             "Your question has been saved. Please try again shortly."
@@ -476,6 +484,9 @@ def _process_question(
         return
 
     except (ValueError, LookupError, RuntimeError, psycopg.Error):
+        logger.exception(
+            "Tutor request failed during validation, graph execution, or database access."
+        )
         st.error(
             "We encountered a problem while processing your question. "
             "Please try again."
