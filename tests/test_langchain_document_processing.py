@@ -1,13 +1,9 @@
 """Tests for EduPath's page-aware LangChain document pipeline."""
 
 import unittest
-from io import BytesIO
-
 from langchain_core.document_loaders import BaseLoader
 from langchain_core.documents import Document
 from langchain_text_splitters import TextSplitter
-from pypdf import PdfWriter
-
 from services.langchain_document_processing import (
     EduPathDocumentLoader,
     EduPathPageAwareTextSplitter,
@@ -15,20 +11,6 @@ from services.langchain_document_processing import (
 )
 from services.text_processing_service import DocumentProcessingError
 
-
-def build_test_pdf(page_texts: list[str]) -> bytes:
-    """Build a small text PDF for extraction tests."""
-
-    writer = PdfWriter()
-    for text in page_texts:
-        writer.add_blank_page(width=300, height=300)
-        page = writer.pages[-1]
-        page.insert_text if hasattr(page, "insert_text") else None
-
-    # pypdf does not create text content on blank pages, so use a minimal
-    # text-bearing PDF through its public text extraction fixture path.
-    # Tests below exercise page behavior using an in-memory reader fixture.
-    raise NotImplementedError("Use TXT loader tests for now.")
 
 
 class EduPathDocumentLoaderTests(unittest.TestCase):
