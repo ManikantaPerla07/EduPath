@@ -164,6 +164,7 @@ def list_course_documents(
                     d.error_message,
                     d.created_at,
                     d.processed_at,
+                    d.archived_at,
                     t.topic_name,
                     COUNT(dc.chunk_id)::INTEGER AS chunk_count,
                     COUNT(dc.chunk_id) FILTER (
@@ -190,6 +191,7 @@ def list_course_documents(
                     d.error_message,
                     d.created_at,
                     d.processed_at,
+                    d.archived_at,
                     t.topic_name
                 ORDER BY d.created_at DESC, d.file_name;
                 """,
@@ -210,9 +212,10 @@ def list_course_documents(
             "error_message": row[8],
             "created_at": row[9],
             "processed_at": row[10],
-            "topic_name": row[11],
-            "chunk_count": row[12],
-            "embedded_chunk_count": row[13],
+            "archived_at": row[11],
+            "topic_name": row[12],
+            "chunk_count": row[13],
+            "embedded_chunk_count": row[14],
         }
         for row in rows
     ]
@@ -617,7 +620,8 @@ def retry_document_processing(
                     file_type,
                     file_data,
                     source_title,
-                    processing_status
+                    processing_status,
+                    archived_at
                 FROM documents
                 WHERE document_id = %s
                 FOR UPDATE;
@@ -629,7 +633,19 @@ def retry_document_processing(
             if row is None:
                 raise LookupError("The requested document was not found.")
 
-            file_name, file_type, file_data, source_title, status = row
+            (
+                file_name,
+                file_type,
+                file_data,
+                source_title,
+                status,
+                archived_at,
+            ) = row
+
+            if archived_at is not None:
+                raise ValueError(
+                    "Archived documents must be restored before reprocessing."
+                )
 
             if status != "failed":
                 raise ValueError(
@@ -744,4 +760,195 @@ def retry_document_processing(
             for chunk in chunks
             if chunk.page_number is not None
         }) or (1 if file_type in {"txt", "md"} else 0),
+    }
+
+def archive_course_document(
+    user_id: str,
+    document_id: str,
+) -> dict[str, Any]:
+    """Soft-archive a document without deleting its file or chunk history.
+
+    If this was the last fully embedded active resource for a published
+    course, the same transaction unpublishes the course to prevent learners
+    receiving an apparently available course with no searchable source.
+    """
+
+    admin_id = _validate_user_id(user_id)
+
+    try:
+        parsed_document_id = UUID(str(document_id))
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError("A valid document ID is required.") from None
+
+    course_unpublished = False
+
+    with psycopg.connect(
+        load_database_url(),
+        connect_timeout=20,
+    ) as connection:
+        with connection.cursor() as cursor:
+            _require_active_admin(cursor, admin_id)
+            cursor.execute(
+                """
+                SELECT course_id, processing_status, archived_at
+                FROM documents
+                WHERE document_id = %s
+                FOR UPDATE;
+                """,
+                (parsed_document_id,),
+            )
+            document = cursor.fetchone()
+
+            if document is None:
+                raise LookupError("The requested document was not found.")
+
+            course_id, processing_status, archived_at = document
+
+            if processing_status == "processing":
+                raise ValueError(
+                    "A document cannot be archived while it is processing."
+                )
+
+            if archived_at is not None:
+                return {
+                    "document_id": str(parsed_document_id),
+                    "archived": True,
+                    "changed": False,
+                    "course_unpublished": False,
+                }
+
+            cursor.execute(
+                """
+                UPDATE documents
+                SET archived_at = NOW()
+                WHERE document_id = %s
+                  AND archived_at IS NULL
+                RETURNING archived_at;
+                """,
+                (parsed_document_id,),
+            )
+            if cursor.fetchone() is None:
+                raise RuntimeError("The document could not be archived.")
+
+            cursor.execute(
+                """
+                SELECT is_published
+                FROM courses
+                WHERE course_id = %s
+                FOR UPDATE;
+                """,
+                (course_id,),
+            )
+            course = cursor.fetchone()
+
+            if course is None:
+                raise LookupError("The document's course was not found.")
+
+            if course[0]:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*)::INTEGER
+                    FROM (
+                        SELECT d.document_id
+                        FROM documents AS d
+                        LEFT JOIN document_chunks AS dc
+                            ON dc.document_id = d.document_id
+                        WHERE d.course_id = %s
+                          AND d.archived_at IS NULL
+                          AND d.processing_status = 'ready'
+                        GROUP BY d.document_id
+                        HAVING COUNT(dc.chunk_id) > 0
+                           AND COUNT(dc.embedding) = COUNT(dc.chunk_id)
+                    ) AS searchable_documents;
+                    """,
+                    (course_id,),
+                )
+                remaining_searchable = cursor.fetchone()[0]
+
+                if remaining_searchable < 1:
+                    cursor.execute(
+                        """
+                        UPDATE courses
+                        SET is_published = FALSE,
+                            updated_at = NOW()
+                        WHERE course_id = %s
+                          AND is_published = TRUE;
+                        """,
+                        (course_id,),
+                    )
+                    course_unpublished = cursor.rowcount == 1
+
+    return {
+        "document_id": str(parsed_document_id),
+        "archived": True,
+        "changed": True,
+        "course_unpublished": course_unpublished,
+    }
+
+
+def restore_course_document(
+    user_id: str,
+    document_id: str,
+) -> dict[str, Any]:
+    """Restore an archived document while leaving course publication unchanged."""
+
+    admin_id = _validate_user_id(user_id)
+
+    try:
+        parsed_document_id = UUID(str(document_id))
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError("A valid document ID is required.") from None
+
+    with psycopg.connect(
+        load_database_url(),
+        connect_timeout=20,
+    ) as connection:
+        with connection.cursor() as cursor:
+            _require_active_admin(cursor, admin_id)
+            cursor.execute(
+                """
+                SELECT processing_status, archived_at
+                FROM documents
+                WHERE document_id = %s
+                FOR UPDATE;
+                """,
+                (parsed_document_id,),
+            )
+            document = cursor.fetchone()
+
+            if document is None:
+                raise LookupError("The requested document was not found.")
+
+            processing_status, archived_at = document
+
+            if processing_status == "processing":
+                raise ValueError(
+                    "A document cannot be restored while it is processing."
+                )
+
+            if archived_at is None:
+                return {
+                    "document_id": str(parsed_document_id),
+                    "archived": False,
+                    "changed": False,
+                }
+
+            cursor.execute(
+                """
+                UPDATE documents
+                SET archived_at = NULL
+                WHERE document_id = %s
+                  AND archived_at IS NOT NULL
+                RETURNING document_id;
+                """,
+                (parsed_document_id,),
+            )
+
+            if cursor.fetchone() is None:
+                raise RuntimeError("The document could not be restored.")
+
+    return {
+        "document_id": str(parsed_document_id),
+        "archived": False,
+        "changed": True,
     }
