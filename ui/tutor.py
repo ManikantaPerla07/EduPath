@@ -15,6 +15,7 @@ from services.conversation_context_service import (
 )
 from services.chat_service import (
     ChatRateLimitError,
+    ChatSessionBusyError,
     create_chat_session,
     delete_chat_session,
     get_chat_messages,
@@ -340,6 +341,9 @@ def _render_conversation_settings(
                 st.warning(
                     "This conversation was not found or is no longer available."
                 )
+
+            except ChatSessionBusyError as exc:
+                st.warning(str(exc))
 
             except (ValueError, LookupError, psycopg.Error):
                 st.error(
