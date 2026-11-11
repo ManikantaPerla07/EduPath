@@ -852,5 +852,33 @@ class LearnerToolGraphTests(unittest.TestCase):
         )
 
 
+
+    def test_learner_tools_require_authenticated_user_before_model_call(self):
+        tool_model = FakeLearnerToolModel(
+            AIMessage(content="No learner data is needed.")
+        )
+        graph = build_tutor_graph(
+            enable_tools=True,
+            tool_model=tool_model,
+        )
+        graph_input = self._graph_input("How am I doing?")
+        graph_input["user_id"] = None
+
+        with (
+            patch(
+                "agents.tutor_graph.resolve_contextual_question",
+                side_effect=lambda question, conversation_history, client:
+                    question,
+            ),
+            self.assertRaisesRegex(
+                ValueError,
+                "authenticated learner is required",
+            ),
+        ):
+            graph.invoke(graph_input)
+
+        self.assertEqual(tool_model.bound_tools, [])
+
+
 if __name__ == "__main__":
     unittest.main()
