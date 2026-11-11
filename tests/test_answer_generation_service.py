@@ -337,6 +337,38 @@ class GroundedAnswerGenerationTests(unittest.TestCase):
             FALLBACK_GENERATION_MODEL,
         )
 
+    def test_falls_back_after_http_transport_interruption(self):
+        client = make_client()
+
+        remote_protocol_error = type(
+            "RemoteProtocolError",
+            (Exception,),
+            {"__module__": "httpx2"},
+        )
+        client.models.generate_content.side_effect = [
+            remote_protocol_error("Server disconnected"),
+            SimpleNamespace(
+                text="A variable refers to a value. [S1]"
+            ),
+        ]
+
+        result = generate_grounded_answer(
+            "What is a variable?",
+            [make_chunk()],
+            client=client,
+        )
+
+        self.assertFalse(result["insufficient_evidence"])
+        self.assertEqual(result["model"], FALLBACK_GENERATION_MODEL)
+        self.assertEqual(
+            client.models.generate_content.call_args_list[0].kwargs["model"],
+            GENERATION_MODEL,
+        )
+        self.assertEqual(
+            client.models.generate_content.call_args_list[1].kwargs["model"],
+            FALLBACK_GENERATION_MODEL,
+        )
+
     def test_does_not_fallback_for_non_retryable_error(self):
         client = make_client()
 
