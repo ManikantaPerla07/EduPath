@@ -174,7 +174,6 @@ class SampleResourceImportTests(unittest.TestCase):
             result["resources"][0]["status"],
             "topic_mismatch",
         )
-        ingest.assert_not_called() if result["imported"] == 0 else None
         self.assertEqual(ingest.call_count, 8)
 
     @patch("services.sample_resource_service.list_admin_course_topics")
