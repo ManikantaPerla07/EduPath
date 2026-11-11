@@ -358,6 +358,7 @@ def generate_study_plan(
                 WHERE u.user_id = %s
                   AND u.is_active = TRUE
                   AND lp.adult_confirmation = TRUE
+                  AND c.is_published = TRUE
                 FOR UPDATE OF lp;
                 """,
                 (course_slug, learner_id),
@@ -579,6 +580,7 @@ def fetch_active_study_plan(
                   AND u.is_active = TRUE
                   AND lp.adult_confirmation = TRUE
                   AND c.course_slug = %s
+                  AND c.is_published = TRUE
                   AND p.status IN ('active', 'completed')
                 ORDER BY p.created_at DESC
                 LIMIT 1;
