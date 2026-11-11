@@ -334,7 +334,10 @@ def fetch_learner_topic_progress(
 
         WHERE u.user_id = %s
           AND u.is_active = TRUE
-          AND c.is_published = TRUE
+          AND (
+              c.is_published = TRUE
+              OR u.role = 'admin'
+          )
 
         ORDER BY t.sequence_number;
     """
