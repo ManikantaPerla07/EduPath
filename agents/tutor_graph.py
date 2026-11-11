@@ -20,6 +20,7 @@ from services.adaptive_learning_service import (
     get_learner_teaching_profile,
 )
 from services.answer_generation_service import (
+    AnswerGenerationError,
     GENERATION_MODEL,
     MAX_QUESTION_LENGTH,
     generate_grounded_answer,
@@ -226,12 +227,17 @@ def build_tutor_graph(
         )
         model_with_tools = decision_model.bind_tools(LEARNER_DATA_TOOLS)
 
-        decision = model_with_tools.invoke(
-            [
-                SystemMessage(content=TOOL_ROUTER_SYSTEM_INSTRUCTION),
-                HumanMessage(content=state["retrieval_query"]),
-            ]
-        )
+        try:
+            decision = model_with_tools.invoke(
+                [
+                    SystemMessage(content=TOOL_ROUTER_SYSTEM_INSTRUCTION),
+                    HumanMessage(content=state["retrieval_query"]),
+                ]
+            )
+        except Exception as exc:
+            raise AnswerGenerationError(
+                "The tutor could not determine whether learner data is needed."
+            ) from exc
 
         if not isinstance(decision, AIMessage):
             raise RuntimeError(
@@ -289,7 +295,9 @@ def build_tutor_graph(
             # ToolNode marks handled exceptions as error messages. Never
             # pass an error string to the language model as learner evidence.
             if getattr(message, "status", "success") == "error":
-                continue
+                raise RuntimeError(
+                    "EduPath could not load the requested learner data."
+                )
 
             try:
                 if not isinstance(message.content, str):
@@ -300,10 +308,10 @@ def build_tutor_graph(
                 if isinstance(tool_payload, dict):
                     learner_context[tool_name] = tool_payload
 
-            except (TypeError, ValueError, json.JSONDecodeError):
-                # Invalid tool output is not trusted evidence. An empty
-                # context makes the answer generator abstain safely.
-                continue
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                raise RuntimeError(
+                    "EduPath received invalid learner data from a tutor tool."
+                ) from exc
 
         return {"learner_context": learner_context}
 
