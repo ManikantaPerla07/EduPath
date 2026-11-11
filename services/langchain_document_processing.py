@@ -175,7 +175,7 @@ def process_document_with_langchain(
     file_type: str | None = None,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     overlap: int = DEFAULT_CHUNK_OVERLAP,
-):
+) -> list[Document]:
     """Run EduPath document ingestion through LangChain loader/splitter APIs.
 
     Returns LangChain Documents. The caller can map these to EduPath's stable
