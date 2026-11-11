@@ -21,7 +21,7 @@ EduPath is an AI-powered learning platform for beginner Python programming. It c
 | Language | Python 3.11 |
 | AI model and embeddings | Google Gemini (`google-genai`, exposed through LangChain adapters) |
 | LLM prompts and runnable chains | LangChain |
-| Agent orchestration | LangGraph |
+| Agent orchestration | LangGraph with Neon-backed PostgreSQL checkpoints |
 | Document processing | pypdf plus page-aware LangChain loader and text splitter |
 | Retrieval | RAG, Gemini Embedding 2, PostgreSQL pgvector |
 | Database | PostgreSQL (Neon) |
@@ -148,11 +148,15 @@ http://localhost:8501/oauth2callback
 
 ### 5. Initialize the database
 
-Run the schema migrations:
+Run the application schema migrations and initialize LangGraph's managed PostgreSQL checkpoint tables:
 
 ```powershell
 python database\run_migrations.py
 ```
+
+The migration command also initializes the checkpoint tables maintained by
+`langgraph-checkpoint-postgres`. Re-running it is safe; the package applies
+only its pending checkpoint-table migrations.
 
 Create or update the Python course and its topic prerequisites:
 
