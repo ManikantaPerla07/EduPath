@@ -27,6 +27,7 @@ EXPECTED_TABLES = {
     "learner_topic_progress",
     "chat_sessions",
     "chat_messages",
+    "chat_message_feedback",
     "documents",
     "document_chunks",
     "agent_runs",
