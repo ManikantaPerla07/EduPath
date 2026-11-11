@@ -497,16 +497,21 @@ class ChatDatabaseTests(unittest.TestCase):
                 "New title",
             )
 
+    @patch("services.chat_service.delete_langgraph_thread_checkpoints")
     @patch("services.chat_service.load_database_url", return_value="test-db")
     @patch("services.chat_service.psycopg.connect")
-    def test_deletes_owned_session(
+    def test_deletes_owned_session_and_checkpoints(
         self,
         mock_connect,
         mock_database_url,
+        mock_delete_checkpoints,
     ):
         connection, cursor = make_database()
         mock_connect.return_value = connection
-        cursor.fetchone.return_value = (SESSION_ID,)
+        cursor.fetchone.side_effect = [
+            (THREAD_ID,),
+            (SESSION_ID,),
+        ]
 
         result = delete_chat_session(
             str(USER_ID),
@@ -514,21 +519,32 @@ class ChatDatabaseTests(unittest.TestCase):
         )
 
         self.assertTrue(result)
+        mock_delete_checkpoints.assert_called_once_with(
+            thread_id=THREAD_ID,
+            database_url="test-db",
+        )
+        self.assertEqual(cursor.execute.call_count, 2)
+        self.assertIn(
+            "SELECT thread_id",
+            cursor.execute.call_args_list[0].args[0],
+        )
         self.assertIn(
             "DELETE FROM chat_sessions",
-            cursor.execute.call_args.args[0],
+            cursor.execute.call_args_list[1].args[0],
         )
         self.assertIn(
             "AND user_id = %s",
-            cursor.execute.call_args.args[0],
+            cursor.execute.call_args_list[1].args[0],
         )
 
+    @patch("services.chat_service.delete_langgraph_thread_checkpoints")
     @patch("services.chat_service.load_database_url", return_value="test-db")
     @patch("services.chat_service.psycopg.connect")
     def test_delete_returns_false_for_unowned_session(
         self,
         mock_connect,
         mock_database_url,
+        mock_delete_checkpoints,
     ):
         connection, cursor = make_database()
         mock_connect.return_value = connection
@@ -540,6 +556,39 @@ class ChatDatabaseTests(unittest.TestCase):
         )
 
         self.assertFalse(result)
+        cursor.execute.assert_called_once()
+        mock_delete_checkpoints.assert_not_called()
+
+    @patch(
+        "services.chat_service.delete_langgraph_thread_checkpoints",
+        side_effect=RuntimeError("Checkpoint store unavailable"),
+    )
+    @patch("services.chat_service.load_database_url", return_value="test-db")
+    @patch("services.chat_service.psycopg.connect")
+    def test_does_not_delete_chat_when_checkpoint_cleanup_fails(
+        self,
+        mock_connect,
+        mock_database_url,
+        mock_delete_checkpoints,
+    ):
+        connection, cursor = make_database()
+        mock_connect.return_value = connection
+        cursor.fetchone.return_value = (THREAD_ID,)
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "Checkpoint store unavailable",
+        ):
+            delete_chat_session(
+                str(USER_ID),
+                str(SESSION_ID),
+            )
+
+        cursor.execute.assert_called_once()
+        self.assertIn(
+            "SELECT thread_id",
+            cursor.execute.call_args.args[0],
+        )
 
 
 if __name__ == "__main__":
