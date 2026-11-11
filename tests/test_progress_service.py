@@ -375,10 +375,9 @@ class ProgressRetrievalTests(unittest.TestCase):
 
         self.assertEqual(result, expected_rows)
         cursor.fetchall.assert_called_once()
-        self.assertIn(
-            "c.is_published = TRUE",
-            cursor.execute.call_args.args[0],
-        )
+        query = cursor.execute.call_args.args[0]
+        self.assertIn("c.is_published = TRUE", query)
+        self.assertIn("u.role = 'admin'", query)
 
     def test_fetch_uses_correct_database_parameters(self):
         connection, cursor = self._mock_database([])
