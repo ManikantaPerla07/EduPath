@@ -7,6 +7,7 @@ import psycopg
 import streamlit as st
 
 from agents.tutor_graph import run_tutor_graph
+from services.agent_telemetry_service import AgentRunAlreadyActiveError
 from services.answer_generation_service import AnswerGenerationError
 from services.conversation_context_service import (
     MAX_CONTEXT_HISTORY_MESSAGES,
@@ -548,6 +549,10 @@ def _process_question(
             content=answer,
             citations=citations,
         )
+
+    except AgentRunAlreadyActiveError as exc:
+        st.warning(str(exc))
+        return
 
     except (AnswerGenerationError, ConversationContextError):
         logger.exception(
