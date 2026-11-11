@@ -5,6 +5,8 @@ import logging
 import psycopg
 import streamlit as st
 
+from ui.theme import render_page_header
+
 from services.tutor_feedback_service import get_tutor_feedback_summary
 
 
@@ -16,14 +18,12 @@ COURSE_SLUG = "python-basics"
 def render_tutor_feedback(learner: dict) -> None:
     """Display course-level feedback metrics without exposing learner data."""
 
-    st.title("AI Tutor Feedback Insights")
-    st.write(
-        "Review aggregate learner ratings to understand how helpful "
-        "AI Tutor answers are and whether learners are submitting feedback."
-    )
-    st.caption(
-        "This page displays course-level totals and daily aggregates only. "
-        "It does not reveal learner identities or private conversation text."
+    render_page_header(
+        "ADMINISTRATOR WORKSPACE",
+        "AI Tutor feedback",
+        "Review aggregate learner ratings, feedback coverage, and daily trends. "
+        "Only course-level metrics are shown; learner identities and private "
+        "conversation text are not exposed.",
     )
 
     if learner.get("role") != "admin":
