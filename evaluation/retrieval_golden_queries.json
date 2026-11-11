@@ -1,0 +1,92 @@
+[
+  {
+    "id": "variables-01",
+    "query": "What does dynamic typing mean, and can a Python variable refer to a value of a different type after reassignment?",
+    "expected_topic_slug": "variables-data-types"
+  },
+  {
+    "id": "variables-02",
+    "query": "How can I distinguish int, float, str and bool values, and inspect a value with type()?",
+    "expected_topic_slug": "variables-data-types"
+  },
+  {
+    "id": "operators-01",
+    "query": "What is the difference between /, // and % in Python arithmetic?",
+    "expected_topic_slug": "operators"
+  },
+  {
+    "id": "operators-02",
+    "query": "How does Python operator precedence work, and when should I use parentheses in an expression?",
+    "expected_topic_slug": "operators"
+  },
+  {
+    "id": "conditionals-01",
+    "query": "How does an if-elif-else chain choose the first matching branch when assigning a grade?",
+    "expected_topic_slug": "conditionals"
+  },
+  {
+    "id": "conditionals-02",
+    "query": "How can I combine conditions with and or or when checking eligibility?",
+    "expected_topic_slug": "conditionals"
+  },
+  {
+    "id": "loops-01",
+    "query": "How does range(start, stop, step) work, and why is the stop value excluded?",
+    "expected_topic_slug": "loops"
+  },
+  {
+    "id": "loops-02",
+    "query": "What is the difference between break and continue inside a Python loop?",
+    "expected_topic_slug": "loops"
+  },
+  {
+    "id": "functions-01",
+    "query": "What is the difference between a parameter in a function definition and an argument passed when calling it?",
+    "expected_topic_slug": "functions"
+  },
+  {
+    "id": "functions-02",
+    "query": "How is return different from print() inside a Python function?",
+    "expected_topic_slug": "functions"
+  },
+  {
+    "id": "lists-tuples-01",
+    "query": "How do list mutability and tuple immutability differ in Python?",
+    "expected_topic_slug": "lists-tuples"
+  },
+  {
+    "id": "lists-tuples-02",
+    "query": "How do negative indexing and slicing work with lists, and is the stop index included?",
+    "expected_topic_slug": "lists-tuples"
+  },
+  {
+    "id": "dictionaries-sets-01",
+    "query": "How does dict.get() handle a key that does not exist, and how can I provide a default value?",
+    "expected_topic_slug": "dictionaries-sets"
+  },
+  {
+    "id": "dictionaries-sets-02",
+    "query": "How do set union, intersection and difference identify combined, common and distinct elements?",
+    "expected_topic_slug": "dictionaries-sets"
+  },
+  {
+    "id": "strings-01",
+    "query": "Why are Python strings immutable, and does replace() modify the original string?",
+    "expected_topic_slug": "strings"
+  },
+  {
+    "id": "strings-02",
+    "query": "How do split() and join() convert between a sentence and a list of words?",
+    "expected_topic_slug": "strings"
+  },
+  {
+    "id": "problem-solving-01",
+    "query": "How can I use a dictionary and get(value, 0) to count the frequency of each value while iterating through a list?",
+    "expected_topic_slug": "problem-solving"
+  },
+  {
+    "id": "problem-solving-02",
+    "query": "How do manual tracing and edge-case testing help debug an algorithm that finds the largest value in a list?",
+    "expected_topic_slug": "problem-solving"
+  }
+]
