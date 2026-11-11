@@ -187,6 +187,184 @@ class AdminDocumentListingTests(unittest.TestCase):
             connect.assert_not_called()
 
 
+class DocumentArchivalTests(unittest.TestCase):
+
+    def test_archiving_last_searchable_resource_unpublishes_course(self):
+        from datetime import datetime, timezone
+        from services.document_service import archive_course_document
+
+        archived_at = datetime(2026, 11, 11, tzinfo=timezone.utc)
+        cursor = make_cursor()
+        cursor.fetchone.side_effect = [
+            ("admin",),
+            (COURSE_ID, "ready", None),
+            (archived_at,),
+            (True,),
+            (0,),
+        ]
+        cursor.rowcount = 1
+        connection = make_connection(cursor)
+
+        with (
+            patch(
+                "services.document_service.load_database_url",
+                return_value="postgresql://test",
+            ),
+            patch(
+                "services.document_service.psycopg.connect",
+                return_value=connection,
+            ),
+        ):
+            result = archive_course_document(
+                ADMIN_ID,
+                str(DOCUMENT_ID),
+            )
+
+        self.assertTrue(result["archived"])
+        self.assertTrue(result["changed"])
+        self.assertTrue(result["course_unpublished"])
+        statements = [
+            call.args[0]
+            for call in cursor.execute.call_args_list
+        ]
+        self.assertTrue(
+            any("SET archived_at = NOW()" in sql for sql in statements)
+        )
+        self.assertTrue(
+            any(
+                "SET is_published = FALSE" in sql
+                for sql in statements
+            )
+        )
+        self.assertFalse(
+            any("DELETE FROM documents" in sql for sql in statements)
+        )
+
+    def test_archiving_one_of_multiple_resources_keeps_course_published(self):
+        from datetime import datetime, timezone
+        from services.document_service import archive_course_document
+
+        cursor = make_cursor()
+        cursor.fetchone.side_effect = [
+            ("admin",),
+            (COURSE_ID, "ready", None),
+            (datetime(2026, 11, 11, tzinfo=timezone.utc),),
+            (True,),
+            (1,),
+        ]
+        connection = make_connection(cursor)
+
+        with (
+            patch(
+                "services.document_service.load_database_url",
+                return_value="postgresql://test",
+            ),
+            patch(
+                "services.document_service.psycopg.connect",
+                return_value=connection,
+            ),
+        ):
+            result = archive_course_document(
+                ADMIN_ID,
+                str(DOCUMENT_ID),
+            )
+
+        self.assertFalse(result["course_unpublished"])
+        self.assertFalse(
+            any(
+                "SET is_published = FALSE" in call.args[0]
+                for call in cursor.execute.call_args_list
+            )
+        )
+
+    def test_archiving_processing_document_is_rejected(self):
+        from services.document_service import archive_course_document
+
+        cursor = make_cursor()
+        cursor.fetchone.side_effect = [
+            ("admin",),
+            (COURSE_ID, "processing", None),
+        ]
+        connection = make_connection(cursor)
+
+        with (
+            patch(
+                "services.document_service.load_database_url",
+                return_value="postgresql://test",
+            ),
+            patch(
+                "services.document_service.psycopg.connect",
+                return_value=connection,
+            ),
+        ):
+            with self.assertRaisesRegex(ValueError, "while it is processing"):
+                archive_course_document(ADMIN_ID, str(DOCUMENT_ID))
+
+    def test_student_cannot_archive_documents(self):
+        from services.document_service import archive_course_document
+
+        cursor = make_cursor(fetchone=("student",))
+        connection = make_connection(cursor)
+
+        with (
+            patch(
+                "services.document_service.load_database_url",
+                return_value="postgresql://test",
+            ),
+            patch(
+                "services.document_service.psycopg.connect",
+                return_value=connection,
+            ),
+        ):
+            with self.assertRaises(PermissionError):
+                archive_course_document(ADMIN_ID, str(DOCUMENT_ID))
+
+        self.assertEqual(cursor.execute.call_count, 1)
+
+    def test_restoring_preserves_chunks_and_embeddings(self):
+        from datetime import datetime, timezone
+        from services.document_service import restore_course_document
+
+        cursor = make_cursor()
+        cursor.fetchone.side_effect = [
+            ("admin",),
+            (
+                "ready",
+                datetime(2026, 11, 11, tzinfo=timezone.utc),
+            ),
+            (DOCUMENT_ID,),
+        ]
+        connection = make_connection(cursor)
+
+        with (
+            patch(
+                "services.document_service.load_database_url",
+                return_value="postgresql://test",
+            ),
+            patch(
+                "services.document_service.psycopg.connect",
+                return_value=connection,
+            ),
+        ):
+            result = restore_course_document(
+                ADMIN_ID,
+                str(DOCUMENT_ID),
+            )
+
+        self.assertFalse(result["archived"])
+        self.assertTrue(result["changed"])
+        statements = [
+            call.args[0]
+            for call in cursor.execute.call_args_list
+        ]
+        self.assertTrue(
+            any("SET archived_at = NULL" in sql for sql in statements)
+        )
+        self.assertFalse(
+            any("DELETE FROM document_chunks" in sql for sql in statements)
+        )
+
+
 class FailedDocumentRetryTests(unittest.TestCase):
 
     def test_retries_failed_document_and_replaces_chunks_atomically(self):
