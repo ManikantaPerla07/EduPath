@@ -108,7 +108,7 @@ def start_assessment(
             # Find the course.
             cursor.execute(
                 """
-                SELECT course_id
+                SELECT course_id, is_published
                 FROM courses
                 WHERE course_slug = %s;
                 """,
@@ -120,7 +120,12 @@ def start_assessment(
             if course_row is None:
                 raise ValueError("Course not found.")
 
-            course_id = course_row[0]
+            course_id, is_published = course_row
+
+            if not is_published:
+                raise PermissionError(
+                    "This course is not currently available to learners."
+                )
 
             # Practice and revision assessments adapt to learner progress.
             # Diagnostic assessments deliberately retain the original
