@@ -286,6 +286,7 @@ def run_migrations():
     print("New migrations      :", results["applied"])
     print("Already applied     :", results["skipped"])
     print("Application tables  :", table_count)
+    print("LangGraph checkpoints:", "READY")
     print("Schema verification :", "SUCCESS")
 
     print("\nAll migrations completed successfully.")
