@@ -810,3 +810,34 @@ Date: 2026-11-11
   77 subtests passed on November 11, 2026.
 - The nine sample learning resources remain unuploaded. Final RAG ingestion
   and live retrieval evaluation remain deferred to the final integration phase.
+
+## Reliability refinement: index chat request and active Tutor run queries
+
+Date: 2026-11-11
+
+### Completed
+- Added migration `006_chat_and_tutor_run_indexes.sql`.
+- Added a partial B-tree index on recent user-role chat messages using
+  `(created_at, session_id)` to support the account-wide rolling
+  10-minute question-count query without indexing assistant transcripts.
+- Added a partial B-tree index on active Tutor reservations using
+  `(session_id, started_at DESC)` where status is `running`. This supports
+  active-run checks, 30-minute stale-reservation cleanup, and safe
+  conversation-deletion checks.
+- Extended the migration runner's schema verification to check for both
+  required index names after all pending migrations are applied.
+- Added automated tests for successful index verification and a missing-index
+  failure.
+- The migration is additive and does not modify existing chat or telemetry
+  records. No new dependency or paid service is required.
+
+### Verification status
+- Local migration-runner tests and the full suite are pending after the
+  developer pulls this change.
+- Applying the new migration to Neon is required with
+  `python database/run_migrations.py`. This command also rechecks the
+  existing application schema and LangGraph checkpoint setup.
+- The latest user-verified full-suite baseline before this change was
+  527 passed and 77 subtests passed on November 11, 2026.
+- The nine sample learning resources remain unuploaded. Final RAG ingestion
+  and live retrieval evaluation remain deferred to the final integration phase.
