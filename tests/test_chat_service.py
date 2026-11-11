@@ -406,13 +406,16 @@ class ChatDatabaseTests(unittest.TestCase):
     ):
         connection, cursor = make_database()
         mock_connect.return_value = connection
-        cursor.fetchone.return_value = (
-            MESSAGE_ID,
-            USER_ID,
-            True,
-            NOW,
-            NOW,
-        )
+        cursor.fetchone.side_effect = [
+            (USER_ID,),
+            (
+                MESSAGE_ID,
+                USER_ID,
+                True,
+                NOW,
+                NOW,
+            ),
+        ]
 
         result = save_chat_feedback(
             str(USER_ID),
@@ -424,7 +427,11 @@ class ChatDatabaseTests(unittest.TestCase):
         self.assertEqual(result["user_id"], str(USER_ID))
         self.assertIs(result["is_helpful"], True)
 
-        query, parameters = cursor.execute.call_args.args
+        self.assertEqual(cursor.execute.call_count, 2)
+        lock_query = cursor.execute.call_args_list[0].args[0]
+        query, parameters = cursor.execute.call_args_list[1].args
+        self.assertIn("is_active = TRUE", lock_query)
+        self.assertIn("FOR SHARE", lock_query)
         self.assertIn("cm.role = 'assistant'", query)
         self.assertIn("cs.user_id = %s", query)
         self.assertIn("ON CONFLICT (message_id) DO UPDATE", query)
@@ -437,7 +444,7 @@ class ChatDatabaseTests(unittest.TestCase):
 
     @patch("services.chat_service.load_database_url", return_value="test-db")
     @patch("services.chat_service.psycopg.connect")
-    def test_feedback_rejects_unowned_or_non_assistant_message(
+    def test_feedback_rejects_inactive_account_before_insert(
         self,
         mock_connect,
         mock_database_url,
@@ -446,6 +453,37 @@ class ChatDatabaseTests(unittest.TestCase):
         mock_connect.return_value = connection
         cursor.fetchone.return_value = None
 
+        with self.assertRaisesRegex(
+            LookupError,
+            "active learner account",
+        ):
+            save_chat_feedback(
+                str(USER_ID),
+                str(MESSAGE_ID),
+                True,
+            )
+
+        cursor.execute.assert_called_once()
+        self.assertIn(
+            "is_active = TRUE",
+            cursor.execute.call_args.args[0],
+        )
+        self.assertIn(
+            "FOR SHARE",
+            cursor.execute.call_args.args[0],
+        )
+
+    @patch("services.chat_service.load_database_url", return_value="test-db")
+    @patch("services.chat_service.psycopg.connect")
+    def test_feedback_rejects_unowned_or_non_assistant_message(
+        self,
+        mock_connect,
+        mock_database_url,
+    ):
+        connection, cursor = make_database()
+        mock_connect.return_value = connection
+        cursor.fetchone.side_effect = [(USER_ID,), None]
+
         with self.assertRaises(LookupError):
             save_chat_feedback(
                 str(USER_ID),
@@ -453,7 +491,11 @@ class ChatDatabaseTests(unittest.TestCase):
                 False,
             )
 
-        query, parameters = cursor.execute.call_args.args
+        self.assertEqual(cursor.execute.call_count, 2)
+        lock_query = cursor.execute.call_args_list[0].args[0]
+        query, parameters = cursor.execute.call_args_list[1].args
+        self.assertIn("is_active = TRUE", lock_query)
+        self.assertIn("FOR SHARE", lock_query)
         self.assertIn("cs.user_id = %s", query)
         self.assertIn("cm.role = 'assistant'", query)
         self.assertEqual(parameters, (False, MESSAGE_ID, USER_ID))
