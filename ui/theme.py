@@ -490,7 +490,7 @@ p, li, label, [data-testid="stMarkdownContainer"] {
 [data-testid="stBaseButton-primary"]:disabled {
     opacity: 1 !important;
     border-color: #e0e6ef !important;
-    color: #718096 !important;
+    color: #53627a !important;
     background: #edf1f7 !important;
     box-shadow: none !important;
     transform: none !important;
