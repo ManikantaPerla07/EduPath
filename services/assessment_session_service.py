@@ -91,7 +91,8 @@ def start_assessment(
                 """
                 SELECT course_id, is_published
                 FROM courses
-                WHERE course_slug = %s;
+                WHERE course_slug = %s
+                FOR SHARE;
                 """,
                 (course_slug,),
             )
