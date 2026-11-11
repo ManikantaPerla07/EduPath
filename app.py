@@ -145,6 +145,19 @@ def logout_user():
     st.logout()
 
 
+def render_sidebar_signout() -> None:
+    """Render a consistently styled sign-out action in the sidebar."""
+
+    with st.sidebar.container(key="edupath_sidebar_signout"):
+        st.button(
+            "Sign out",
+            key="edupath_sidebar_signout_button",
+            on_click=logout_user,
+            type="secondary",
+            width="stretch",
+        )
+
+
 def load_authenticated_learner():
     """Load and cache the authenticated learner for up to 60 seconds."""
 
@@ -577,18 +590,18 @@ def home_screen(learner):
 
     st.sidebar.divider()
 
-    if learner.get("email"):
-        st.sidebar.caption(f"Signed in as {learner['email']}")
+    with st.sidebar.container(key="edupath_sidebar_account_details"):
+        if learner.get("email"):
+            st.caption(f"Signed in as {learner['email']}")
 
-    role_label = "Administrator" if learner.get("role") == "admin" else "Learner"
-    st.sidebar.caption(f"Account type · {role_label}")
+        role_label = (
+            "Administrator"
+            if learner.get("role") == "admin"
+            else "Learner"
+        )
+        st.caption(f"Account type · {role_label}")
 
-    st.sidebar.button(
-        "Sign out",
-        key="edupath_sidebar_sign_out",
-        on_click=logout_user,
-        width="stretch",
-    )
+    render_sidebar_signout()
 
     previous_page = st.session_state.get("edupath_last_navigation")
     navigation_changed = previous_page != selected_page
@@ -635,11 +648,7 @@ if learner.get("role") != "admin":
         st.error(
             "We could not verify course availability. Please try again later."
         )
-        st.sidebar.button(
-            "Sign out",
-            on_click=logout_user,
-            width="stretch",
-        )
+        render_sidebar_signout()
         st.stop()
 
     if not course_available:
@@ -649,11 +658,7 @@ if learner.get("role") != "admin":
             "EduPath team. Learner access will be available after the "
             "course and its approved learning resources are published."
         )
-        st.sidebar.button(
-            "Sign out",
-            on_click=logout_user,
-            width="stretch",
-        )
+        render_sidebar_signout()
         st.stop()
 
 home_screen(learner)
