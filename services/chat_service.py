@@ -442,9 +442,10 @@ def save_chat_message(
     """
     Save a user or assistant message to a learner-owned session.
 
-    Learner questions additionally lock the active user row and enforce the
-    rolling account-level question limit before insertion. Ownership checks,
-    message insertion, and activity updates remain transactional.
+    Every message write locks the active learner row and owned session.
+    Learner questions additionally enforce the rolling account-level question
+    limit before insertion. Ownership checks, message insertion, and activity
+    updates remain transactional.
     """
 
     user_uuid = _validate_uuid(user_id, "User ID")
@@ -670,7 +671,7 @@ def rename_chat_session(
     session_id: str | UUID,
     title: str,
 ) -> dict[str, Any]:
-    """Rename a session only when it belongs to the learner."""
+    """Rename a session only for its active owning learner."""
 
     user_uuid = _validate_uuid(user_id, "User ID")
     session_uuid = _validate_uuid(session_id, "Session ID")
@@ -730,11 +731,13 @@ def delete_chat_session(
     session_id: str | UUID,
 ) -> bool:
     """
-    Delete an owned conversation and its LangGraph checkpoints.
+    Delete an owned conversation for an active learner and remove its
+    LangGraph checkpoints.
 
-    Checkpoints are deleted before the session row. If checkpoint cleanup
-    fails, the chat transcript remains available rather than leaving hidden
-    graph state behind after a successful-looking deletion.
+    The active user and session rows are locked together. Checkpoints are
+    deleted before the session row. If checkpoint cleanup fails, the chat
+    transcript remains available rather than leaving hidden graph state
+    behind after a successful-looking deletion.
     """
 
     user_uuid = _validate_uuid(user_id, "User ID")
