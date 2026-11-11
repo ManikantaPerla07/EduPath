@@ -364,19 +364,72 @@ def render_knowledge_management(learner: dict) -> None:
     st.subheader("Course publication")
     st.caption(
         "Learners can access this course only while it is published. "
-        "Publishing requires topics, active assessment questions, and at "
-        "least one fully embedded active learning resource."
+        "Publishing requires every topic to have an active, topic-specific "
+        "resource with all embeddings stored, as well as active assessment "
+        "questions."
     )
-    readiness_columns = st.columns(3)
+    readiness_columns = st.columns(4)
     readiness_columns[0].metric("Topics", publication["topic_count"])
     readiness_columns[1].metric(
+        "Topics covered",
+        f"{publication['covered_topic_count']}/{publication['topic_count']}",
+    )
+    readiness_columns[2].metric(
         "Active questions",
         publication["active_question_count"],
     )
-    readiness_columns[2].metric(
+    readiness_columns[3].metric(
         "Fully embedded resources",
         publication["fully_embedded_document_count"],
     )
+
+    topic_count = publication["topic_count"]
+    covered_topic_count = publication["covered_topic_count"]
+    coverage_ratio = (
+        covered_topic_count / topic_count
+        if topic_count > 0
+        else 0.0
+    )
+    st.progress(
+        coverage_ratio,
+        text=(
+            f"Topic resource coverage: {covered_topic_count} of "
+            f"{topic_count} topics"
+        ),
+    )
+
+    st.subheader("Topic resource coverage")
+    st.caption(
+        "A topic is covered only when it has at least one non-archived, "
+        "ready resource assigned to that topic and every extracted chunk "
+        "has an embedding. Course-wide resources are listed in the inventory "
+        "but do not replace topic-specific coverage."
+    )
+
+    for topic in publication["topic_coverage"]:
+        topic_columns = st.columns([4, 1, 2])
+        topic_columns[0].markdown(f"**{topic['topic_name']}**")
+        topic_columns[1].metric(
+            "Resources",
+            topic["fully_embedded_document_count"],
+        )
+        if topic["is_covered"]:
+            topic_columns[2].success("Covered")
+        elif topic["chunk_count"] > topic["embedded_chunk_count"]:
+            topic_columns[2].warning("Embedding incomplete")
+        else:
+            topic_columns[2].error("Resource needed")
+
+    if publication["uncovered_topics"]:
+        st.warning(
+            "Resources are still needed for: "
+            + ", ".join(
+                topic["topic_name"]
+                for topic in publication["topic_coverage"]
+                if not topic["is_covered"]
+            )
+        )
+
     st.caption(
         "Publication readiness: "
         + ("Ready" if publication["ready_to_publish"] else "Not ready")
