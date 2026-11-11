@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 from uuid import UUID
 
 from services.agent_telemetry_service import (
+    MAX_ACTIVE_RUN_MINUTES,
+    AgentRunAlreadyActiveError,
     finish_agent_run,
     start_agent_run,
 )
@@ -96,18 +98,79 @@ class AgentTelemetryDatabaseTests(unittest.TestCase):
     ):
         connection, cursor = make_database()
         mock_connect.return_value = connection
-        cursor.fetchone.return_value = (RUN_ID,)
+        cursor.fetchone.side_effect = [
+            (SESSION_ID,),
+            None,
+            (RUN_ID,),
+        ]
 
         result = start_agent_run(USER_ID, SESSION_ID)
 
         self.assertEqual(result, RUN_ID)
-        query, parameters = cursor.execute.call_args.args
-        self.assertIn("u.is_active = TRUE", query)
-        self.assertIn("cs.user_id = u.user_id", query)
+        self.assertEqual(cursor.execute.call_count, 4)
+
+        lock_sql, lock_parameters = cursor.execute.call_args_list[0].args
+        expire_sql, expire_parameters = cursor.execute.call_args_list[1].args
+        active_sql, active_parameters = cursor.execute.call_args_list[2].args
+        insert_sql, insert_parameters = cursor.execute.call_args_list[3].args
+
+        self.assertIn("u.is_active = TRUE", lock_sql)
+        self.assertIn("FOR UPDATE OF u, cs", lock_sql)
+        self.assertEqual(lock_parameters, (SESSION_ID, USER_ID))
+        self.assertIn("SET", expire_sql)
+        self.assertIn("status = 'stopped'", expire_sql)
+        self.assertIn("statement_timestamp()", expire_sql)
         self.assertEqual(
-            parameters,
-            ("adaptive_tutor", SESSION_ID, USER_ID, SESSION_ID),
+            expire_parameters,
+            (SESSION_ID, MAX_ACTIVE_RUN_MINUTES),
         )
+        self.assertIn("status = 'running'", active_sql)
+        self.assertEqual(active_parameters, (SESSION_ID,))
+        self.assertIn("INSERT INTO agent_runs", insert_sql)
+        self.assertEqual(
+            insert_parameters,
+            (USER_ID, SESSION_ID, "adaptive_tutor"),
+        )
+
+    @patch("services.agent_telemetry_service.load_database_url", return_value="test-db")
+    @patch("services.agent_telemetry_service.psycopg.connect")
+    def test_rejects_second_running_request_for_same_session(
+        self,
+        mock_connect,
+        mock_database_url,
+    ):
+        connection, cursor = make_database()
+        mock_connect.return_value = connection
+        cursor.fetchone.side_effect = [
+            (SESSION_ID,),
+            (RUN_ID,),
+        ]
+
+        with self.assertRaises(AgentRunAlreadyActiveError):
+            start_agent_run(USER_ID, SESSION_ID)
+
+        self.assertEqual(cursor.execute.call_count, 3)
+        self.assertNotIn(
+            "INSERT INTO agent_runs",
+            cursor.execute.call_args.args[0],
+        )
+
+    @patch("services.agent_telemetry_service.load_database_url", return_value="test-db")
+    @patch("services.agent_telemetry_service.psycopg.connect")
+    def test_rejects_unowned_session_before_stale_run_cleanup(
+        self,
+        mock_connect,
+        mock_database_url,
+    ):
+        connection, cursor = make_database()
+        mock_connect.return_value = connection
+        cursor.fetchone.return_value = None
+
+        with self.assertRaises(LookupError):
+            start_agent_run(USER_ID, SESSION_ID)
+
+        cursor.execute.assert_called_once()
+        self.assertIn("FOR UPDATE OF u, cs", cursor.execute.call_args.args[0])
 
     @patch("services.agent_telemetry_service.load_database_url", return_value="test-db")
     @patch("services.agent_telemetry_service.psycopg.connect")
