@@ -316,10 +316,31 @@ def process_document(
         file_type=resolved_type,
     )
 
-    return chunk_extracted_pages(
-        pages=pages,
+    # Import lazily to avoid a module cycle: the LangChain adapter reuses
+    # this module's established extraction and chunking functions.
+    from services.langchain_document_processing import (
+        process_document_with_langchain,
+    )
+
+    langchain_chunks = process_document_with_langchain(
+        file_data=file_data,
+        file_name=file_name,
+        file_type=resolved_type,
         chunk_size=chunk_size,
         overlap=overlap,
-        source_name=file_name,
-        source_type=resolved_type,
     )
+
+    return [
+        TextChunk(
+            chunk_index=document.metadata["chunk_index"],
+            page_number=document.metadata["page_number"],
+            start_char=document.metadata["start_char"],
+            end_char=document.metadata["end_char"],
+            content=document.page_content,
+            metadata={
+                "source_name": file_name,
+                "source_type": resolved_type,
+            },
+        )
+        for document in langchain_chunks
+    ]
