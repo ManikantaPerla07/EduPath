@@ -604,6 +604,8 @@ Date: 2026-11-11
 - Included saved feedback in chronological chat-history retrieval.
 - Added a thumbs-up/down control beneath each assistant response in the Tutor transcript.
 - Restored previously saved ratings when messages are reopened.
+- Added the feedback table to the migration runner's required-schema verification list.
+- Added dedicated UI tests for positive/negative ratings, restoring saved feedback, changing a prior rating, and suppressing feedback controls on learner messages.
 - Updated the README and added service tests for validation, ownership, assistant-role enforcement, retrieval and rating updates.
 
 ### Verification status
