@@ -870,3 +870,30 @@ Date: 2026-11-11
   529 passed and 77 subtests passed on November 11, 2026.
 - Migration 006 is applied to Neon. The nine sample learning resources remain
   unuploaded; final RAG ingestion and live retrieval evaluation remain deferred.
+
+## Security refinement: serialize learner assessment and study-plan writes with account deactivation
+
+Date: 2026-11-11
+
+### Completed
+- Added a shared row lock to the active-account check in assessment creation.
+  Assessment creation holds `FOR SHARE` on the learner row until its session
+  and question snapshots commit.
+- Extended study-plan generation's existing learner-profile/course lock to
+  include the active learner account row.
+- Extended study-plan activity updates to lock the active learner row along
+  with the activity, parent plan, and course.
+- These locks serialize account deactivation with all three write paths:
+  an operation already holding its account lock completes before deactivation,
+  or a deactivation that commits first prevents the later operation.
+- Added SQL-level regression assertions to assessment-session and
+  study-plan service tests.
+- No database migration or new dependency is required.
+
+### Verification status
+- Local focused and full-suite verification is pending after the developer
+  pulls this change.
+- The latest user-verified full-suite baseline before this change was
+  530 passed and 77 subtests passed on November 11, 2026.
+- Migration 006 is applied to Neon. The nine sample learning resources remain
+  unuploaded; final RAG ingestion and live retrieval evaluation remain deferred.
