@@ -1,5 +1,6 @@
 """Tests for EduPath's LangChain Neon pgvector retriever."""
 
+import asyncio
 import unittest
 from unittest.mock import patch
 
@@ -82,6 +83,34 @@ class NeonPgVectorRetrieverTests(unittest.TestCase):
         self.assertEqual(
             documents[0].metadata["similarity"],
             0.85,
+        )
+
+    @patch("services.langchain_retriever.search_knowledge_base")
+    def test_ainvoke_returns_langchain_documents(self, mock_search):
+        mock_search.return_value = [make_chunk()]
+
+        retriever = NeonPgVectorRetriever(
+            course_slug="python-basics",
+            topic_slug="variables-data-types",
+            limit=3,
+        )
+
+        documents = asyncio.run(
+            retriever.ainvoke("How are Python variables created?")
+        )
+
+        mock_search.assert_called_once_with(
+            query="How are Python variables created?",
+            course_slug="python-basics",
+            topic_slug="variables-data-types",
+            limit=3,
+            client=None,
+        )
+        self.assertEqual(len(documents), 1)
+        self.assertIsInstance(documents[0], Document)
+        self.assertEqual(
+            documents[0].page_content,
+            "Python variables are created when a value is assigned.",
         )
 
     @patch("services.langchain_retriever.search_knowledge_base")
