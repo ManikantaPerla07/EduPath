@@ -68,7 +68,7 @@ class EmbeddingStorageTests(unittest.TestCase):
 
     def test_non_ready_document_is_rejected(self):
         cursor = MagicMock()
-        cursor.fetchone.return_value = (SOURCE_TITLE, "processing")
+        cursor.fetchone.return_value = (SOURCE_TITLE, "processing", None)
         connection = make_connection(cursor)
 
         with (
@@ -89,7 +89,7 @@ class EmbeddingStorageTests(unittest.TestCase):
     def test_saves_embedding_for_stored_chunk(self):
         fetch_cursor = MagicMock()
         fetch_cursor.fetchone.side_effect = [
-            (SOURCE_TITLE, "ready"),
+            (SOURCE_TITLE, "ready", None),
             (1, 0),
         ]
         fetch_cursor.fetchall.return_value = [
@@ -147,7 +147,7 @@ class EmbeddingStorageTests(unittest.TestCase):
     def test_skips_already_embedded_chunks(self):
         cursor = MagicMock()
         cursor.fetchone.side_effect = [
-            (SOURCE_TITLE, "ready"),
+            (SOURCE_TITLE, "ready", None),
             (1, 1),
         ]
         cursor.fetchall.return_value = []
@@ -176,7 +176,7 @@ class EmbeddingStorageTests(unittest.TestCase):
     def test_concurrent_update_is_counted_as_skipped(self):
         fetch_cursor = MagicMock()
         fetch_cursor.fetchone.side_effect = [
-            (SOURCE_TITLE, "ready"),
+            (SOURCE_TITLE, "ready", None),
             (1, 0),
         ]
         fetch_cursor.fetchall.return_value = [
@@ -221,7 +221,7 @@ class EmbeddingStorageTests(unittest.TestCase):
     def test_api_failure_does_not_save_embedding(self):
         fetch_cursor = MagicMock()
         fetch_cursor.fetchone.side_effect = [
-            (SOURCE_TITLE, "ready"),
+            (SOURCE_TITLE, "ready", None),
             (1, 0),
         ]
         fetch_cursor.fetchall.return_value = [
