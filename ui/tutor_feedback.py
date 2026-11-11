@@ -116,5 +116,6 @@ def render_tutor_feedback(learner: dict) -> None:
     st.dataframe(
         trend_rows,
         width="stretch",
+        height="content",
         hide_index=True,
     )
