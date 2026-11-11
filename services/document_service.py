@@ -155,6 +155,7 @@ def list_course_documents(
                 SELECT
                     d.document_id::TEXT,
                     d.file_name,
+                    d.file_sha256,
                     d.file_type,
                     d.file_size_bytes,
                     d.source_title,
@@ -165,6 +166,7 @@ def list_course_documents(
                     d.created_at,
                     d.processed_at,
                     d.archived_at,
+                    t.topic_slug,
                     t.topic_name,
                     COUNT(dc.chunk_id)::INTEGER AS chunk_count,
                     COUNT(dc.chunk_id) FILTER (
@@ -192,6 +194,7 @@ def list_course_documents(
                     d.created_at,
                     d.processed_at,
                     d.archived_at,
+                    t.topic_slug,
                     t.topic_name
                 ORDER BY d.created_at DESC, d.file_name;
                 """,
@@ -203,19 +206,21 @@ def list_course_documents(
         {
             "document_id": row[0],
             "file_name": row[1],
-            "file_type": row[2],
-            "file_size_bytes": row[3],
-            "source_title": row[4],
-            "source_license": row[5],
-            "rights_basis": row[6],
-            "processing_status": row[7],
-            "error_message": row[8],
-            "created_at": row[9],
-            "processed_at": row[10],
-            "archived_at": row[11],
-            "topic_name": row[12],
-            "chunk_count": row[13],
-            "embedded_chunk_count": row[14],
+            "file_sha256": row[2],
+            "file_type": row[3],
+            "file_size_bytes": row[4],
+            "source_title": row[5],
+            "source_license": row[6],
+            "rights_basis": row[7],
+            "processing_status": row[8],
+            "error_message": row[9],
+            "created_at": row[10],
+            "processed_at": row[11],
+            "archived_at": row[12],
+            "topic_slug": row[13],
+            "topic_name": row[14],
+            "chunk_count": row[15],
+            "embedded_chunk_count": row[16],
         }
         for row in rows
     ]
