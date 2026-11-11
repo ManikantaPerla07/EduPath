@@ -841,3 +841,32 @@ Date: 2026-11-11
   527 passed and 77 subtests passed on November 11, 2026.
 - The nine sample learning resources remain unuploaded. Final RAG ingestion
   and live retrieval evaluation remain deferred to the final integration phase.
+
+## Security refinement: recheck active account during assessment submission
+
+Date: 2026-11-11
+
+### Completed
+- Updated assessment submission authorization to join the assessment owner
+  to the active `users` row.
+- Submission is rejected when the learner account has been deactivated,
+  including attempts to retrieve a previously submitted result through the
+  submission endpoint.
+- The service locks both the assessment session and the learner account row
+  with `FOR UPDATE OF s, u` while grading and persisting the result.
+- Account deactivation therefore serializes with an assessment submission:
+  a submission already holding the user-row lock completes first, or a
+  deactivation that commits first prevents the submission from proceeding.
+- Kept the intentional course-unpublishing behavior unchanged: existing
+  assessment sessions can still be completed while the learner account
+  remains active.
+- Added a regression test for inactive-account rejection and SQL locking.
+- No database migration or dependency is required.
+
+### Verification status
+- Local focused and full-suite verification is pending after the developer
+  pulls this change.
+- The latest user-verified full-suite baseline before this change was
+  529 passed and 77 subtests passed on November 11, 2026.
+- Migration 006 is applied to Neon. The nine sample learning resources remain
+  unuploaded; final RAG ingestion and live retrieval evaluation remain deferred.
