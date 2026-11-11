@@ -69,6 +69,7 @@ EduPath/
 │   └── seed_questions.py
 ├── docs/
 │   └── DEVELOPMENT_LOG.md  # Implementation milestones and decisions
+├── evaluation/             # Golden-query RAG retrieval benchmark and runner
 ├── rag/                    # Retrieval-related modules
 ├── sample_documents/       # Nine topic-aligned Python learning resources and upload guide
 ├── services/
@@ -230,7 +231,19 @@ python -m compileall -q agents services ui tests
 git diff --check
 ```
 
-The latest user-verified full-suite result before the Tutor feedback insights milestone was **469 passed, 53 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
+The latest user-verified full-suite result before the RAG retrieval evaluation milestone was **479 passed, 58 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
+
+## Evaluate RAG retrieval
+
+EduPath includes an 18-query, nine-topic golden benchmark with Hit@K, Precision@K, MRR, retrieval coverage, and per-topic metrics. The evaluator searches the full course without applying the expected-topic filter. It measures topic-level retrieval alignment, not answer factuality or generation quality.
+
+The live benchmark is intentionally deferred until the final integration phase. After all nine approved resources are uploaded, fully embedded, reviewed, and the course is published, run:
+
+```powershell
+python -m evaluation.run_retrieval_evaluation
+```
+
+See [evaluation/README.md](evaluation/README.md) for metric definitions, limitations, and optional JSON report output. Running the live benchmark makes one Gemini query-embedding request per golden question and does not modify the database.
 
 ## Deploy to Streamlit Community Cloud
 
