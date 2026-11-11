@@ -1,6 +1,8 @@
 import psycopg
 import streamlit as st
 
+from ui.theme import render_page_header
+
 from services.assessment_session_service import start_assessment
 from services.assessment_submission_service import submit_assessment
 from services.adaptive_assessment_service import submit_adaptive_answer
@@ -550,10 +552,10 @@ def render_assessment(learner: dict) -> None:
         _render_question(assessment)
         return
 
-    st.header("Python Programming")
-
-    st.write(
-        "Choose an assessment mode based on what you want to achieve."
+    render_page_header(
+        "ASSESSMENTS",
+        "Python programming",
+        "Choose the assessment mode that best supports your next learning step.",
     )
 
     diagnostic_col, practice_col, revision_col = st.columns(3)
