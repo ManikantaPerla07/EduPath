@@ -43,6 +43,7 @@ from services.retrieval_service import (
 )
 from services.chat_service import get_chat_session
 from services.agent_telemetry_service import (
+    AgentRunAlreadyActiveError,
     finish_agent_run,
     start_agent_run,
 )
@@ -581,6 +582,10 @@ def run_tutor_graph(
                 user_id=user_id,
                 session_id=session_id,
             )
+        except AgentRunAlreadyActiveError:
+            # A session reservation conflict is a correctness safeguard,
+            # not a best-effort telemetry failure.
+            raise
         except Exception as exc:
             logger.warning(
                 "Could not start Tutor run telemetry (%s).",
