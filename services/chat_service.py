@@ -436,8 +436,9 @@ def save_chat_message(
     """
     Save a user or assistant message to a learner-owned session.
 
-    The session is locked while the message and activity timestamp
-    are updated, keeping both operations in one transaction.
+    Learner questions additionally lock the active user row and enforce the
+    rolling account-level question limit before insertion. Ownership checks,
+    message insertion, and activity updates remain transactional.
     """
 
     user_uuid = _validate_uuid(user_id, "User ID")
