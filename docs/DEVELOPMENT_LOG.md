@@ -922,3 +922,33 @@ Date: 2026-11-11
 - Migration 006 remains applied to Neon. The nine sample learning resources
   remain unuploaded; final RAG ingestion and live retrieval evaluation remain
   deferred to the final integration phase.
+
+## Security refinement: serialize chat mutations with account deactivation
+
+Date: 2026-11-11
+
+### Completed
+- Added an active-account share lock to chat-session creation so an account
+  deactivation cannot commit concurrently with a new conversation insert.
+- Updated all chat-message writes (learner questions and assistant replies) to
+  lock the active learner and owned session together before inserting. An
+  in-flight Tutor response is therefore not persisted after the account has
+  been deactivated.
+- Added active-account and owned-session locking to conversation renaming
+  and deletion. Deletion uses the same account/session lock pattern as
+  persistent Tutor-run reservation, preserving the existing protection
+  against deleting a conversation that is in active use.
+- Kept the learner-question rolling rate limit and its account-level
+  serialization intact.
+- Added regression coverage for account lock SQL, inactive-account rejection,
+  assistant reply rejection after deactivation, and chat rename/delete paths.
+- No database migration, new dependency, or external service is required.
+
+### Verification status
+- The change is committed to the feature branch; local focused and full-suite
+  verification is pending after the developer pulls it.
+- The preceding user-verified full-suite baseline was 532 passed and
+  77 subtests passed on November 11, 2026.
+- Migration 006 remains applied to Neon. The nine sample learning resources
+  remain unuploaded; final RAG ingestion and live retrieval evaluation remain
+  deferred to the final integration phase.
