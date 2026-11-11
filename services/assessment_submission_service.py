@@ -170,8 +170,8 @@ def submit_assessment(
     Grade and finalize an assessment.
 
     Security:
-    - Checks that the assessment belongs to the learner.
-    - Locks the assessment session during submission.
+    - Checks that the assessment belongs to an active learner.
+    - Locks the assessment session and learner account during submission.
     - Reads correct answers from saved question snapshots.
     - Rejects unknown question IDs.
     - Prevents modification after submission.
@@ -203,8 +203,9 @@ def submit_assessment(
 
         with connection.cursor() as cursor:
 
-            # Lock and verify the session.
-            # A different learner cannot submit this assessment.
+            # Lock the assessment and learner account together.
+            # This both verifies ownership and prevents a concurrent account
+            # deactivation from racing with an in-progress submission.
             cursor.execute(
                 """
                 SELECT
@@ -215,9 +216,12 @@ def submit_assessment(
                 FROM assessment_sessions AS s
                 JOIN courses AS c
                     ON c.course_id = s.course_id
+                JOIN users AS u
+                    ON u.user_id = s.user_id
                 WHERE s.assessment_id = %s
                   AND s.user_id = %s
-                FOR UPDATE OF s;
+                  AND u.is_active = TRUE
+                FOR UPDATE OF s, u;
                 """,
                 (session_id, learner_id),
             )
