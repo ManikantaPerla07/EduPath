@@ -108,7 +108,12 @@ def get_agent_run_summary(
             )::INTEGER AS failed_runs,
             COUNT(ar.run_id) FILTER (
                 WHERE ar.status = 'running'
+                  AND ar.started_at >= NOW() - INTERVAL '{STALE_RUN_MINUTES} minutes'
             )::INTEGER AS running_runs,
+            COUNT(ar.run_id) FILTER (
+                WHERE ar.status = 'running'
+                  AND ar.started_at < NOW() - INTERVAL '{STALE_RUN_MINUTES} minutes'
+            )::INTEGER AS stale_runs,
             COUNT(ar.run_id) FILTER (
                 WHERE ar.status = 'stopped'
             )::INTEGER AS stopped_runs,
