@@ -310,12 +310,6 @@ def process_document(
 
     resolved_type = _resolve_file_type(file_name, file_type)
 
-    pages = extract_document_pages(
-        file_data=file_data,
-        file_name=file_name,
-        file_type=resolved_type,
-    )
-
     # Import lazily to avoid a module cycle: the LangChain adapter reuses
     # this module's established extraction and chunking functions.
     from services.langchain_document_processing import (
