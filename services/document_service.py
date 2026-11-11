@@ -40,6 +40,184 @@ def _validate_user_id(user_id: str) -> UUID:
         raise ValueError("A valid uploader user ID is required.") from None
 
 
+def _require_active_admin(cursor, user_id: UUID) -> None:
+    """Require an active administrator for knowledge-management operations."""
+
+    cursor.execute(
+        """
+        SELECT role
+        FROM users
+        WHERE user_id = %s
+          AND is_active = TRUE;
+        """,
+        (user_id,),
+    )
+    row = cursor.fetchone()
+
+    if row is None or row[0] != "admin":
+        raise PermissionError(
+            "An active administrator account is required "
+            "to manage educational resources."
+        )
+
+
+def list_admin_courses(user_id: str) -> list[dict[str, Any]]:
+    """List courses visible to an authenticated administrator."""
+
+    admin_id = _validate_user_id(user_id)
+
+    with psycopg.connect(
+        load_database_url(),
+        connect_timeout=20,
+    ) as connection:
+        with connection.cursor() as cursor:
+            _require_active_admin(cursor, admin_id)
+            cursor.execute(
+                """
+                SELECT course_slug, course_name, is_published
+                FROM courses
+                ORDER BY course_name, course_slug;
+                """
+            )
+            rows = cursor.fetchall()
+
+    return [
+        {
+            "course_slug": row[0],
+            "course_name": row[1],
+            "is_published": row[2],
+        }
+        for row in rows
+    ]
+
+
+def list_admin_course_topics(
+    user_id: str,
+    course_slug: str,
+) -> list[dict[str, Any]]:
+    """List topics for a course after verifying administrator access."""
+
+    admin_id = _validate_user_id(user_id)
+    course_slug = _validate_required_text(course_slug, "Course slug")
+
+    with psycopg.connect(
+        load_database_url(),
+        connect_timeout=20,
+    ) as connection:
+        with connection.cursor() as cursor:
+            _require_active_admin(cursor, admin_id)
+            cursor.execute(
+                """
+                SELECT
+                    t.topic_slug,
+                    t.topic_name,
+                    t.sequence_number
+                FROM topics AS t
+                JOIN courses AS c
+                    ON c.course_id = t.course_id
+                WHERE c.course_slug = %s
+                ORDER BY t.sequence_number, t.topic_name;
+                """,
+                (course_slug,),
+            )
+            rows = cursor.fetchall()
+
+    return [
+        {
+            "topic_slug": row[0],
+            "topic_name": row[1],
+            "sequence_number": row[2],
+        }
+        for row in rows
+    ]
+
+
+def list_course_documents(
+    user_id: str,
+    course_slug: str,
+) -> list[dict[str, Any]]:
+    """List document metadata and chunk/embedding status for one course.
+
+    Original file bytes and chunk contents are never returned to the UI.
+    """
+
+    admin_id = _validate_user_id(user_id)
+    course_slug = _validate_required_text(course_slug, "Course slug")
+
+    with psycopg.connect(
+        load_database_url(),
+        connect_timeout=20,
+    ) as connection:
+        with connection.cursor() as cursor:
+            _require_active_admin(cursor, admin_id)
+            cursor.execute(
+                """
+                SELECT
+                    d.document_id::TEXT,
+                    d.file_name,
+                    d.file_type,
+                    d.file_size_bytes,
+                    d.source_title,
+                    d.source_license,
+                    d.rights_basis,
+                    d.processing_status,
+                    d.error_message,
+                    d.created_at,
+                    d.processed_at,
+                    t.topic_name,
+                    COUNT(dc.chunk_id)::INTEGER AS chunk_count,
+                    COUNT(dc.chunk_id) FILTER (
+                        WHERE dc.embedding IS NOT NULL
+                    )::INTEGER AS embedded_chunk_count
+                FROM documents AS d
+                JOIN courses AS c
+                    ON c.course_id = d.course_id
+                LEFT JOIN topics AS t
+                    ON t.topic_id = d.topic_id
+                   AND t.course_id = d.course_id
+                LEFT JOIN document_chunks AS dc
+                    ON dc.document_id = d.document_id
+                WHERE c.course_slug = %s
+                GROUP BY
+                    d.document_id,
+                    d.file_name,
+                    d.file_type,
+                    d.file_size_bytes,
+                    d.source_title,
+                    d.source_license,
+                    d.rights_basis,
+                    d.processing_status,
+                    d.error_message,
+                    d.created_at,
+                    d.processed_at,
+                    t.topic_name
+                ORDER BY d.created_at DESC, d.file_name;
+                """,
+                (course_slug,),
+            )
+            rows = cursor.fetchall()
+
+    return [
+        {
+            "document_id": row[0],
+            "file_name": row[1],
+            "file_type": row[2],
+            "file_size_bytes": row[3],
+            "source_title": row[4],
+            "source_license": row[5],
+            "rights_basis": row[6],
+            "processing_status": row[7],
+            "error_message": row[8],
+            "created_at": row[9],
+            "processed_at": row[10],
+            "topic_name": row[11],
+            "chunk_count": row[12],
+            "embedded_chunk_count": row[13],
+        }
+        for row in rows
+    ]
+
+
 def _validate_required_text(value: str, field_name: str) -> str:
     """Validate required metadata text."""
 
@@ -396,6 +574,169 @@ def ingest_document(
         "source_title": source_title,
         "source_license": source_license,
         "rights_basis": rights_basis,
+        "processing_status": "ready",
+        "chunk_count": len(chunks),
+        "page_count": len({
+            chunk.page_number
+            for chunk in chunks
+            if chunk.page_number is not None
+        }) or (1 if file_type in {"txt", "md"} else 0),
+    }
+
+
+def retry_document_processing(
+    user_id: str,
+    document_id: str,
+) -> dict[str, Any]:
+    """Re-extract and rechunk a failed document using its stored original bytes.
+
+    Only active administrators can retry. Chunk replacement and the transition
+    to ready happen in one transaction. If processing fails, the document
+    remains visibly failed with a safe error summary.
+    """
+
+    admin_id = _validate_user_id(user_id)
+
+    try:
+        parsed_document_id = UUID(str(document_id))
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError("A valid document ID is required.") from None
+
+    database_url = load_database_url()
+
+    with psycopg.connect(
+        database_url,
+        connect_timeout=20,
+    ) as connection:
+        with connection.cursor() as cursor:
+            _require_active_admin(cursor, admin_id)
+            cursor.execute(
+                """
+                SELECT
+                    file_name,
+                    file_type,
+                    file_data,
+                    source_title,
+                    processing_status
+                FROM documents
+                WHERE document_id = %s
+                FOR UPDATE;
+                """,
+                (parsed_document_id,),
+            )
+            row = cursor.fetchone()
+
+            if row is None:
+                raise LookupError("The requested document was not found.")
+
+            file_name, file_type, file_data, source_title, status = row
+
+            if status != "failed":
+                raise ValueError(
+                    "Only failed documents can be reprocessed."
+                )
+
+            cursor.execute(
+                """
+                UPDATE documents
+                SET processing_status = 'processing',
+                    error_message = NULL
+                WHERE document_id = %s
+                  AND processing_status = 'failed';
+                """,
+                (parsed_document_id,),
+            )
+
+    try:
+        chunks = process_document(
+            file_data=file_data,
+            file_name=file_name,
+            file_type=file_type,
+        )
+
+        if not chunks:
+            raise DocumentIngestionError(
+                "The stored document did not produce any text chunks."
+            )
+
+        with psycopg.connect(
+            database_url,
+            connect_timeout=20,
+        ) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM document_chunks
+                    WHERE document_id = %s;
+                    """,
+                    (parsed_document_id,),
+                )
+
+                chunk_rows = [
+                    (
+                        parsed_document_id,
+                        chunk.chunk_index,
+                        chunk.page_number,
+                        chunk.start_char,
+                        chunk.end_char,
+                        chunk.content,
+                        Jsonb(chunk.metadata),
+                    )
+                    for chunk in chunks
+                ]
+
+                cursor.executemany(
+                    """
+                    INSERT INTO document_chunks (
+                        document_id,
+                        chunk_index,
+                        page_number,
+                        start_char,
+                        end_char,
+                        content,
+                        metadata
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s);
+                    """,
+                    chunk_rows,
+                )
+
+                cursor.execute(
+                    """
+                    UPDATE documents
+                    SET processing_status = 'ready',
+                        error_message = NULL,
+                        processed_at = NOW()
+                    WHERE document_id = %s
+                      AND processing_status = 'processing'
+                    RETURNING document_id;
+                    """,
+                    (parsed_document_id,),
+                )
+
+                if cursor.fetchone() is None:
+                    raise DocumentIngestionError(
+                        "The document could not be marked as ready."
+                    )
+
+    except Exception as error:
+        try:
+            _mark_document_failed(
+                database_url=database_url,
+                document_id=parsed_document_id,
+                error=error,
+            )
+        except Exception as status_error:
+            raise DocumentIngestionError(
+                "Document retry failed, and its status could not be updated."
+            ) from status_error
+
+        raise DocumentIngestionError(
+            "Document retry failed. The document remains marked as failed."
+        ) from error
+
+    return {
+        "document_id": str(parsed_document_id),
         "processing_status": "ready",
         "chunk_count": len(chunks),
         "page_count": len({
