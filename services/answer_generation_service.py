@@ -7,6 +7,9 @@ from typing import Any
 
 from google import genai
 from google.genai import types
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from services.embedding_service import load_gemini_api_key
 from services.retrieval_service import search_knowledge_base
@@ -263,6 +266,68 @@ def _generate_with_fallback(
         "Gemini generation failed using all available models."
     )
 
+def _generate_with_langchain_fallback(
+    prompt: str,
+) -> tuple[str, str]:
+    """
+    Generate a grounded response through LangChain and Gemini.
+
+    Retry with the fallback model only for temporary server errors.
+    """
+
+    models_to_try = (
+        GENERATION_MODEL,
+        FALLBACK_GENERATION_MODEL,
+    )
+
+    prompt_template = ChatPromptTemplate.from_messages(
+        [
+            ("system", SYSTEM_INSTRUCTION),
+            ("human", "{prompt}"),
+        ]
+    )
+
+    for index, model_name in enumerate(models_to_try):
+        try:
+            model = ChatGoogleGenerativeAI(
+                model=model_name,
+                google_api_key=load_gemini_api_key(),
+                temperature=0.2,
+                max_output_tokens=MAX_OUTPUT_TOKENS,
+                max_retries=1,
+            )
+
+            chain = prompt_template | model | StrOutputParser()
+
+            answer = chain.invoke({"prompt": prompt})
+
+            return answer, model_name
+
+        except Exception as exc:
+            status_code = getattr(exc, "code", None)
+
+            if status_code is None:
+                status_code = getattr(exc, "status_code", None)
+
+            if status_code is None:
+                response = getattr(exc, "response", None)
+                status_code = getattr(response, "status_code", None)
+
+            can_use_fallback = (
+                index == 0
+                and status_code in RETRYABLE_SERVER_ERRORS
+            )
+
+            if can_use_fallback:
+                continue
+
+            raise AnswerGenerationError(
+                f"LangChain Gemini generation failed using {model_name}."
+            ) from exc
+
+    raise AnswerGenerationError(
+        "LangChain Gemini generation failed using all available models."
+    )
 
 def generate_grounded_answer(
     question: str,
@@ -296,26 +361,24 @@ def generate_grounded_answer(
     )
 
     try:
-
         if client is None:
-            client = genai.Client(
-                api_key=load_gemini_api_key()
+            answer, model_used = _generate_with_langchain_fallback(
+                prompt=prompt,
             )
-
-        response, model_used = _generate_with_fallback(
-            client=client,
-            prompt=prompt,
-        )
+        else:
+            response, model_used = _generate_with_fallback(
+                client=client,
+                prompt=prompt,
+            )
+            answer = getattr(response, "text", None)
 
     except AnswerGenerationError:
         raise
 
     except Exception as exc:
         raise AnswerGenerationError(
-            "The tutor could not initialize Gemini."
+            "The tutor could not initialize Gemini or LangChain."
         ) from exc
-
-    answer = getattr(response, "text", None)
 
     if not isinstance(answer, str) or not answer.strip():
         raise AnswerGenerationError(

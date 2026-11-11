@@ -26,7 +26,7 @@ class TestTutorGraph(unittest.TestCase):
         }
 
         with (
-            patch("agents.tutor_graph.search_knowledge_base") as retrieve,
+            patch("agents.tutor_graph.retrieve_course_chunks") as retrieve,
             patch("agents.tutor_graph.generate_grounded_answer") as generate,
         ):
             retrieve.return_value = chunks
@@ -64,7 +64,7 @@ class TestTutorGraph(unittest.TestCase):
         }
 
         with (
-            patch("agents.tutor_graph.search_knowledge_base") as retrieve,
+            patch("agents.tutor_graph.retrieve_course_chunks") as retrieve,
             patch("agents.tutor_graph.generate_grounded_answer") as generate,
         ):
             retrieve.return_value = []
@@ -84,7 +84,7 @@ class TestTutorGraph(unittest.TestCase):
         )
 
     def test_rejects_empty_question_before_retrieval(self):
-        with patch("agents.tutor_graph.search_knowledge_base") as retrieve:
+        with patch("agents.tutor_graph.retrieve_course_chunks") as retrieve:
             with self.assertRaisesRegex(
                 ValueError,
                 "Question cannot be empty.",
@@ -97,7 +97,7 @@ class TestTutorGraph(unittest.TestCase):
             retrieve.assert_not_called()
 
     def test_rejects_invalid_search_limit_before_retrieval(self):
-        with patch("agents.tutor_graph.search_knowledge_base") as retrieve:
+        with patch("agents.tutor_graph.retrieve_course_chunks") as retrieve:
             with self.assertRaisesRegex(
                 ValueError,
                 "Search limit must be an integer",
@@ -124,7 +124,7 @@ class TestTutorGraph(unittest.TestCase):
         fake_client = object()
 
         with (
-            patch("agents.tutor_graph.search_knowledge_base") as retrieve,
+            patch("agents.tutor_graph.retrieve_course_chunks") as retrieve,
             patch("agents.tutor_graph.generate_grounded_answer") as generate,
         ):
             retrieve.return_value = chunks
@@ -184,7 +184,7 @@ class TestTutorGraph(unittest.TestCase):
             patch(
                 "agents.tutor_graph.resolve_contextual_question"
             ) as resolve,
-            patch("agents.tutor_graph.search_knowledge_base") as retrieve,
+            patch("agents.tutor_graph.retrieve_course_chunks") as retrieve,
             patch("agents.tutor_graph.generate_grounded_answer") as generate,
         ):
             resolve.return_value = resolved_query
@@ -226,7 +226,7 @@ class TestTutorGraph(unittest.TestCase):
                 side_effect=lambda question, conversation_history, client:
                     question,
             ) as resolve,
-            patch("agents.tutor_graph.search_knowledge_base") as retrieve,
+            patch("agents.tutor_graph.retrieve_course_chunks") as retrieve,
             patch("agents.tutor_graph.generate_grounded_answer") as generate,
         ):
             retrieve.return_value = []
@@ -263,7 +263,7 @@ class TestTutorGraph(unittest.TestCase):
             patch(
                 "agents.tutor_graph.resolve_contextual_question"
             ) as resolve,
-            patch("agents.tutor_graph.search_knowledge_base") as retrieve,
+            patch("agents.tutor_graph.retrieve_course_chunks") as retrieve,
         ):
             with self.assertRaisesRegex(
                 ValueError,
@@ -320,7 +320,7 @@ class TestTutorGraph(unittest.TestCase):
                 side_effect=lambda question, conversation_history, client:
                     question,
             ),
-            patch("agents.tutor_graph.search_knowledge_base") as retrieve,
+            patch("agents.tutor_graph.retrieve_course_chunks") as retrieve,
             patch(
                 "agents.tutor_graph.get_learner_teaching_profile"
             ) as get_profile,
@@ -359,7 +359,7 @@ class TestTutorGraph(unittest.TestCase):
                 side_effect=lambda question, conversation_history, client:
                     question,
             ),
-            patch("agents.tutor_graph.search_knowledge_base") as retrieve,
+            patch("agents.tutor_graph.retrieve_course_chunks") as retrieve,
             patch(
                 "agents.tutor_graph.get_learner_teaching_profile"
             ) as get_profile,

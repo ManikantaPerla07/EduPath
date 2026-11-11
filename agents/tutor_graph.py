@@ -17,8 +17,9 @@ from services.conversation_context_service import (
 from services.retrieval_service import (
     MAX_SEARCH_LIMIT,
     MIN_SEARCH_LIMIT,
-    search_knowledge_base,
 )
+
+from services.langchain_retriever import retrieve_course_chunks
 
 
 class TutorGraphState(TypedDict, total=False):
@@ -126,7 +127,7 @@ def build_tutor_graph(client: Any | None = None):
     ) -> dict[str, Any]:
         """Retrieve educational chunks using the resolved question."""
 
-        chunks = search_knowledge_base(
+        chunks = retrieve_course_chunks(
             query=state["retrieval_query"],
             course_slug=state["course_slug"],
             topic_slug=state.get("topic_slug"),
