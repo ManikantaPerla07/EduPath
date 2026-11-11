@@ -6,10 +6,12 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
+from services.agent_telemetry_service import MAX_ACTIVE_RUN_MINUTES
 from services.chat_service import (
     CHAT_RATE_LIMIT_WINDOW_MINUTES,
     MAX_USER_QUESTIONS_PER_WINDOW,
     ChatRateLimitError,
+    ChatSessionBusyError,
     MAX_MESSAGE_LENGTH,
     MAX_TITLE_LENGTH,
     create_chat_session,
@@ -715,6 +717,7 @@ class ChatDatabaseTests(unittest.TestCase):
         mock_connect.return_value = connection
         cursor.fetchone.side_effect = [
             (THREAD_ID,),
+            None,
             (SESSION_ID,),
         ]
 
@@ -728,19 +731,84 @@ class ChatDatabaseTests(unittest.TestCase):
             thread_id=THREAD_ID,
             database_url="test-db",
         )
-        self.assertEqual(cursor.execute.call_count, 2)
+        self.assertEqual(cursor.execute.call_count, 4)
         self.assertIn(
             "SELECT thread_id",
             cursor.execute.call_args_list[0].args[0],
         )
         self.assertIn(
-            "DELETE FROM chat_sessions",
+            "UPDATE agent_runs",
             cursor.execute.call_args_list[1].args[0],
+        )
+        self.assertEqual(
+            cursor.execute.call_args_list[1].args[1],
+            (SESSION_ID, MAX_ACTIVE_RUN_MINUTES),
+        )
+        active_run_query = cursor.execute.call_args_list[2].args[0]
+        self.assertIn("SELECT run_id", active_run_query)
+        self.assertIn("status = 'running'", active_run_query)
+        self.assertIn("statement_timestamp()", active_run_query)
+        self.assertEqual(
+            cursor.execute.call_args_list[2].args[1],
+            (SESSION_ID, MAX_ACTIVE_RUN_MINUTES),
+        )
+        self.assertIn(
+            "DELETE FROM chat_sessions",
+            cursor.execute.call_args_list[3].args[0],
         )
         self.assertIn(
             "AND user_id = %s",
+            cursor.execute.call_args_list[3].args[0],
+        )
+
+    @patch("services.chat_service.delete_langgraph_thread_checkpoints")
+    @patch("services.chat_service.load_database_url", return_value="test-db")
+    @patch("services.chat_service.psycopg.connect")
+    def test_delete_is_blocked_while_tutor_run_is_active(
+        self,
+        mock_connect,
+        mock_database_url,
+        mock_delete_checkpoints,
+    ):
+        connection, cursor = make_database()
+        mock_connect.return_value = connection
+        cursor.fetchone.side_effect = [
+            (THREAD_ID,),
+            (UUID("44444444-4444-4444-8444-444444444444"),),
+        ]
+
+        with self.assertRaisesRegex(
+            ChatSessionBusyError,
+            "currently generating a response",
+        ):
+            delete_chat_session(
+                str(USER_ID),
+                str(SESSION_ID),
+            )
+
+        self.assertEqual(cursor.execute.call_count, 3)
+        self.assertIn(
+            "SELECT thread_id",
+            cursor.execute.call_args_list[0].args[0],
+        )
+        self.assertIn(
+            "UPDATE agent_runs",
             cursor.execute.call_args_list[1].args[0],
         )
+        active_run_query = cursor.execute.call_args_list[2].args[0]
+        self.assertIn("SELECT run_id", active_run_query)
+        self.assertIn("started_at >=", active_run_query)
+        self.assertEqual(
+            cursor.execute.call_args_list[2].args[1],
+            (SESSION_ID, MAX_ACTIVE_RUN_MINUTES),
+        )
+        self.assertFalse(
+            any(
+                "DELETE FROM chat_sessions" in call.args[0]
+                for call in cursor.execute.call_args_list
+            )
+        )
+        mock_delete_checkpoints.assert_not_called()
 
     @patch("services.chat_service.delete_langgraph_thread_checkpoints")
     @patch("services.chat_service.load_database_url", return_value="test-db")
@@ -778,7 +846,10 @@ class ChatDatabaseTests(unittest.TestCase):
     ):
         connection, cursor = make_database()
         mock_connect.return_value = connection
-        cursor.fetchone.return_value = (THREAD_ID,)
+        cursor.fetchone.side_effect = [
+            (THREAD_ID,),
+            None,
+        ]
 
         with self.assertRaisesRegex(
             RuntimeError,
@@ -789,10 +860,18 @@ class ChatDatabaseTests(unittest.TestCase):
                 str(SESSION_ID),
             )
 
-        cursor.execute.assert_called_once()
+        self.assertEqual(cursor.execute.call_count, 3)
         self.assertIn(
             "SELECT thread_id",
-            cursor.execute.call_args.args[0],
+            cursor.execute.call_args_list[0].args[0],
+        )
+        self.assertIn(
+            "UPDATE agent_runs",
+            cursor.execute.call_args_list[1].args[0],
+        )
+        self.assertIn(
+            "SELECT run_id",
+            cursor.execute.call_args_list[2].args[0],
         )
 
 
