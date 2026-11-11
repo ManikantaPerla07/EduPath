@@ -15,6 +15,7 @@ EduPath is an AI-powered learning platform for beginner Python programming. It c
 - **AI Tutor run observability:** records success/failure status and execution duration for authenticated persistent Tutor runs. Telemetry stores lifecycle metadata and exception-class codes only; it does not store prompts, answers, or learner profile contents.
 - **Administrator Knowledge Management:** active administrators can upload PDF, TXT and Markdown resources, associate them with course topics, inspect extraction/chunk/embedding status, retry failed extraction, generate missing embeddings, and review topic-by-topic coverage. Publishing requires every course topic to have at least one non-archived, ready, topic-specific resource with all chunk embeddings stored.
 - **AI Tutor Feedback Insights:** active administrators can view course-level answer and rating counts, feedback coverage, helpful-rating share, and a 14-day trend. The report is aggregate-only and does not expose learner identities or private conversation text.
+- **AI Tutor Operations:** active administrators can view 14-day run totals by status, average completed-run duration, completion/failure shares, and daily run activity. The report does not expose learner identities, chat content, node traces, or error details.
 
 ## Technology stack
 
@@ -75,6 +76,7 @@ EduPath/
 ├── sample_documents/       # Nine topic-aligned Python learning resources and upload guide
 ├── services/
 │   ├── agent_telemetry_service.py       # Privacy-conscious Tutor run lifecycle tracking
+│   ├── agent_telemetry_insights_service.py # Admin-only aggregate Tutor run metrics
 │   ├── langchain_document_processing.py # Page-aware LangChain loader/splitter
 │   ├── langchain_embeddings.py          # Gemini Embedding 2 adapter
 │   ├── langchain_retriever.py           # Neon pgvector retriever adapter
@@ -83,7 +85,8 @@ EduPath/
 ├── tests/                  # Automated tests
 ├── ui/                     # Streamlit learner and administrator interfaces
 │   ├── knowledge_management.py # Admin-only resource upload and processing status
-│   └── tutor_feedback.py      # Admin-only aggregate feedback insights
+│   ├── tutor_feedback.py      # Admin-only aggregate feedback insights
+│   └── agent_telemetry.py     # Admin-only aggregate Tutor run operations
 ├── .streamlit/
 │   ├── config.toml
 │   └── secrets.toml.example
@@ -263,7 +266,7 @@ Keep all credentials in Streamlit's secrets settings. Do not commit or share a p
 
 ## Current scope and limitations
 
-The current MVP focuses on beginner Python programming, with nine topics and a seeded question bank of 27 multiple-choice questions (nine easy, nine medium, and nine hard). The administrator interface supports shared document ingestion, processing and embedding recovery, course publication, and reversible resource archival. Course authoring, permanent resource deletion, and general-purpose instructor analytics are not included yet.
+The current MVP focuses on beginner Python programming, with nine topics and a seeded question bank of 27 multiple-choice questions (nine easy, nine medium, and nine hard). The administrator interface supports shared document ingestion, processing and embedding recovery, course publication, reversible resource archival, aggregate AI Tutor feedback insights, and aggregate run-operations metrics. Course authoring, permanent resource deletion, and general-purpose instructor analytics are not included yet.
 
 ## Development history
 
