@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 from typing import Annotated, Any, TypedDict
 
 from langchain_core.messages import (
@@ -41,6 +42,10 @@ from services.retrieval_service import (
     MIN_SEARCH_LIMIT,
 )
 from services.chat_service import get_chat_session
+from services.agent_telemetry_service import (
+    finish_agent_run,
+    start_agent_run,
+)
 from services.langgraph_checkpoint_service import open_langgraph_checkpointer
 
 from services.langchain_retriever import retrieve_course_chunks
@@ -500,6 +505,36 @@ def build_tutor_graph(
     return graph.compile(checkpointer=checkpointer)
 
 
+def _finish_run_telemetry_safely(
+    user_id: str,
+    run_id: Any | None,
+    status: str,
+    started_at: float,
+    error_code: str | None = None,
+) -> None:
+    """Best-effort run completion that never blocks a learner response."""
+
+    if run_id is None:
+        return
+
+    duration_ms = max(0, round((time.perf_counter() - started_at) * 1000))
+
+    try:
+        finish_agent_run(
+            user_id=user_id,
+            run_id=run_id,
+            status=status,
+            duration_ms=duration_ms,
+            error_code=error_code,
+        )
+    except Exception as exc:
+        # Telemetry is diagnostic; a logging failure must not fail tutoring.
+        logger.warning(
+            "Could not finish Tutor run telemetry (%s).",
+            type(exc).__name__,
+        )
+
+
 def run_tutor_graph(
     question: str,
     course_slug: str,
@@ -511,7 +546,7 @@ def run_tutor_graph(
     session_id: str | None = None,
     tool_model: Any | None = None,
 ) -> dict[str, Any]:
-    """Run the adaptive tutor, checkpointing when a learner chat is supplied."""
+    """Run the adaptive tutor, checkpointing and tracking persistent chats."""
 
     graph_input = {
         "question": question,
@@ -522,10 +557,11 @@ def run_tutor_graph(
         "user_id": user_id,
     }
 
-    if session_id is None:
-        graph = build_tutor_graph(client=client)
-        final_state = graph.invoke(graph_input)
-    else:
+    thread_id = None
+    run_id = None
+    started_at = time.perf_counter()
+
+    if session_id is not None:
         if user_id is None:
             raise ValueError(
                 "A learner user ID is required for a persistent chat session."
@@ -539,34 +575,70 @@ def run_tutor_graph(
         )
         thread_id = session["thread_id"]
 
-        with open_langgraph_checkpointer() as checkpointer:
-            graph = build_tutor_graph(
-                client=client,
-                checkpointer=checkpointer,
-                enable_tools=True,
-                tool_model=tool_model,
+        # Telemetry is best-effort and stores only lifecycle metadata.
+        try:
+            run_id = start_agent_run(
+                user_id=user_id,
+                session_id=session_id,
             )
-            final_state = graph.invoke(
-                graph_input,
-                config={
-                    "configurable": {
-                        "thread_id": thread_id,
-                    }
-                },
+        except Exception as exc:
+            logger.warning(
+                "Could not start Tutor run telemetry (%s).",
+                type(exc).__name__,
             )
 
-    result = final_state.get("answer_result")
+    try:
+        if session_id is None:
+            graph = build_tutor_graph(client=client)
+            final_state = graph.invoke(graph_input)
+        else:
+            with open_langgraph_checkpointer() as checkpointer:
+                graph = build_tutor_graph(
+                    client=client,
+                    checkpointer=checkpointer,
+                    enable_tools=True,
+                    tool_model=tool_model,
+                )
+                final_state = graph.invoke(
+                    graph_input,
+                    config={
+                        "configurable": {
+                            "thread_id": thread_id,
+                        }
+                    },
+                )
 
-    if not isinstance(result, dict):
-        raise RuntimeError("The tutor graph did not produce an answer result.")
+        result = final_state.get("answer_result")
 
-    # Expose the selected teaching approach as display metadata.
-    teaching_profile = final_state.get("teaching_profile")
+        if not isinstance(result, dict):
+            raise RuntimeError(
+                "The tutor graph did not produce an answer result."
+            )
 
-    if teaching_profile is not None:
-        result = {
-            **result,
-            "teaching_profile": teaching_profile,
-        }
+        # Expose the selected teaching approach as display metadata.
+        teaching_profile = final_state.get("teaching_profile")
+
+        if teaching_profile is not None:
+            result = {
+                **result,
+                "teaching_profile": teaching_profile,
+            }
+
+    except Exception as exc:
+        _finish_run_telemetry_safely(
+            user_id=user_id or "",
+            run_id=run_id,
+            status="failed",
+            started_at=started_at,
+            error_code=type(exc).__name__,
+        )
+        raise
+
+    _finish_run_telemetry_safely(
+        user_id=user_id or "",
+        run_id=run_id,
+        status="completed",
+        started_at=started_at,
+    )
 
     return result
