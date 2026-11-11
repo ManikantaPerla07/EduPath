@@ -4,6 +4,8 @@ import logging
 
 import streamlit as st
 
+from ui.theme import render_page_header
+
 from services.document_service import (
     DocumentIngestionError,
     archive_course_document,
@@ -306,10 +308,11 @@ def _render_document_inventory(
 def render_knowledge_management(learner: dict) -> None:
     """Render the administrator-only educational resource workspace."""
 
-    st.title("Knowledge Management")
-    st.write(
-        "Upload approved learning resources, inspect their processing "
-        "status, and manage missing vector embeddings."
+    render_page_header(
+        "ADMINISTRATOR WORKSPACE",
+        "Knowledge management",
+        "Manage approved learning resources, monitor processing status, "
+        "and keep course embeddings ready for retrieval.",
     )
 
     if learner.get("role") != "admin":
