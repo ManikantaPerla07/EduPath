@@ -205,7 +205,7 @@ class LearnerServiceTests(unittest.TestCase):
 
     def test_adult_confirmation_updates_existing_profile(self):
         user_id = uuid4()
-        connection, cursor = self.make_database_mock([])
+        connection, cursor = self.make_database_mock([(user_id,)])
         cursor.rowcount = 1
 
         with patch(
@@ -218,15 +218,43 @@ class LearnerServiceTests(unittest.TestCase):
             result = confirm_adult_status(str(user_id))
 
         self.assertIsNone(result)
-        self.assertEqual(cursor.execute.call_count, 1)
+        self.assertEqual(cursor.execute.call_count, 2)
+        lock_query = cursor.execute.call_args_list[0].args[0]
+        update_query = cursor.execute.call_args_list[1].args[0]
+        self.assertIn("is_active = TRUE", lock_query)
+        self.assertIn("FOR SHARE", lock_query)
+        self.assertIn("UPDATE learner_profiles", update_query)
         self.assertEqual(
-            cursor.execute.call_args[0][1],
+            cursor.execute.call_args_list[1].args[1],
             (user_id,),
+        )
+
+    def test_adult_confirmation_rejects_inactive_account(self):
+        user_id = uuid4()
+        connection, cursor = self.make_database_mock([None])
+
+        with patch(
+            "services.learner_service.psycopg.connect",
+            return_value=connection,
+        ), patch(
+            "services.learner_service.load_database_url",
+            return_value="postgresql://test",
+        ):
+            with self.assertRaisesRegex(
+                PermissionError,
+                "active learner account",
+            ):
+                confirm_adult_status(str(user_id))
+
+        cursor.execute.assert_called_once()
+        self.assertIn(
+            "is_active = TRUE",
+            cursor.execute.call_args.args[0],
         )
 
     def test_adult_confirmation_rejects_missing_profile(self):
         user_id = uuid4()
-        connection, cursor = self.make_database_mock([])
+        connection, cursor = self.make_database_mock([(user_id,)])
         cursor.rowcount = 0
 
         with patch(
@@ -238,6 +266,8 @@ class LearnerServiceTests(unittest.TestCase):
         ):
             with self.assertRaises(ValueError):
                 confirm_adult_status(str(user_id))
+
+        self.assertEqual(cursor.execute.call_count, 2)
 
 
 if __name__ == "__main__":
