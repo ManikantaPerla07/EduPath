@@ -6,6 +6,8 @@ import logging
 import psycopg
 import streamlit as st
 
+from ui.theme import render_page_header
+
 from agents.tutor_graph import run_tutor_graph
 from services.agent_telemetry_service import AgentRunAlreadyActiveError
 from services.answer_generation_service import AnswerGenerationError
@@ -586,16 +588,11 @@ def _process_question(
 def render_tutor(learner: dict) -> None:
     """Render the authenticated learner's conversational AI Tutor."""
 
-    st.title("Your AI Tutor")
-
-    st.write(
-        "Ask questions about Python, explore concepts step by step, "
-        "and receive explanations grounded in your approved course materials."
-    )
-
-    st.caption(
-        "EduPath retrieves relevant Python learning resources and "
-        "provides explanations with source-linked citations."
+    render_page_header(
+        "LEARNING ASSISTANT",
+        "Your AI Tutor",
+        "Explore Python concepts step by step with explanations grounded in "
+        "your approved course materials and source-linked citations.",
     )
 
     user_id = str(learner["user_id"])
