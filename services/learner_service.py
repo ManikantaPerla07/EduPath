@@ -287,6 +287,23 @@ def confirm_adult_status(user_id: str) -> None:
     ) as connection:
 
         with connection.cursor() as cursor:
+            # Serialize this profile write with account deactivation.
+            cursor.execute(
+                """
+                SELECT user_id
+                FROM users
+                WHERE user_id = %s
+                  AND is_active = TRUE
+                FOR SHARE;
+                """,
+                (learner_id,),
+            )
+
+            if cursor.fetchone() is None:
+                raise PermissionError(
+                    "An active learner account is required."
+                )
+
             cursor.execute(
                 """
                 UPDATE learner_profiles
