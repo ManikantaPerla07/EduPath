@@ -1,12 +1,17 @@
 """Tests for the LangGraph-based EduPath tutor workflow."""
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 
 from agents.tutor_graph import build_tutor_graph, run_tutor_graph
+from services.answer_generation_service import (
+    AnswerGenerationError,
+    FALLBACK_GENERATION_MODEL,
+    GENERATION_MODEL,
+)
 
 
 class TestTutorGraph(unittest.TestCase):
@@ -532,6 +537,18 @@ class SequenceFakeLearnerToolModel:
         return self.responses.pop(0)
 
 
+class RaisingLearnerToolModel:
+
+    def __init__(self, error):
+        self.error = error
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        raise self.error
+
+
 class LearnerToolGraphTests(unittest.TestCase):
 
     USER_ID = "ea181992-f802-4528-ae24-10b7e198d8a2"
@@ -852,6 +869,106 @@ class LearnerToolGraphTests(unittest.TestCase):
         )
 
 
+
+    @patch("agents.learner_tools.fetch_active_study_plan", return_value=None)
+    @patch("agents.tutor_graph.resolve_contextual_question")
+    @patch("agents.tutor_graph.retrieve_course_chunks")
+    @patch("agents.tutor_graph.generate_grounded_answer")
+    @patch("agents.tutor_graph._build_learner_tool_model")
+    def test_retries_tool_routing_with_fallback_after_transport_failure(
+        self,
+        build_model,
+        generate,
+        retrieve,
+        resolve,
+        fetch_plan,
+    ):
+        remote_protocol_error = type(
+            "RemoteProtocolError",
+            (Exception,),
+            {"__module__": "httpx"},
+        )
+        primary_model = RaisingLearnerToolModel(
+            remote_protocol_error("Server disconnected")
+        )
+        fallback_model = FakeLearnerToolModel(
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "get_my_study_plan",
+                        "args": {},
+                        "id": "fallback_plan_call",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+        )
+        build_model.side_effect = [primary_model, fallback_model]
+        retrieve.return_value = []
+        expected = {
+            "answer": "You do not have a current study plan.",
+            "insufficient_evidence": False,
+            "citations": [],
+            "retrieved_count": 0,
+            "model": FALLBACK_GENERATION_MODEL,
+            "reason": None,
+            "learner_context_used": True,
+        }
+        generate.return_value = expected
+        resolve.side_effect = (
+            lambda question, conversation_history, client: question
+        )
+
+        graph = build_tutor_graph(enable_tools=True)
+        state = graph.invoke(
+            self._graph_input("What is in my study plan?")
+        )
+
+        self.assertEqual(state["answer_result"], expected)
+        self.assertEqual(
+            build_model.call_args_list,
+            [
+                call(GENERATION_MODEL),
+                call(FALLBACK_GENERATION_MODEL),
+            ],
+        )
+        self.assertEqual(
+            {tool.name for tool in fallback_model.bound_tools},
+            {"get_my_learning_progress", "get_my_study_plan"},
+        )
+        fetch_plan.assert_called_once_with(
+            user_id=self.USER_ID,
+            course_slug="python-basics",
+        )
+        retrieve.assert_not_called()
+        generate.assert_called_once()
+        self.assertIn(
+            "get_my_study_plan",
+            generate.call_args.kwargs["learner_context"],
+        )
+
+    @patch("agents.tutor_graph._build_learner_tool_model")
+    def test_tool_router_does_not_fallback_for_client_error(self, build_model):
+        client_error = RuntimeError("Invalid API request")
+        client_error.code = 403
+        build_model.return_value = RaisingLearnerToolModel(client_error)
+
+        graph = build_tutor_graph(enable_tools=True)
+
+        with (
+            patch(
+                "agents.tutor_graph.resolve_contextual_question",
+                side_effect=lambda question, conversation_history, client:
+                    question,
+            ),
+            self.assertRaises(AnswerGenerationError),
+        ):
+            graph.invoke(
+                self._graph_input("What is in my study plan?")
+            )
+
+        build_model.assert_called_once_with(GENERATION_MODEL)
 
     def test_learner_tools_require_authenticated_user_before_model_call(self):
         tool_model = FakeLearnerToolModel(
