@@ -398,11 +398,11 @@ class AnswerQuestionOrchestrationTests(unittest.TestCase):
         "services.answer_generation_service.generate_grounded_answer"
     )
     @patch(
-        "services.answer_generation_service.search_knowledge_base"
+        "services.answer_generation_service.retrieve_course_chunks"
     )
     def test_retrieves_chunks_then_generates_answer(
         self,
-        mock_search,
+        mock_retrieve,
         mock_generate,
     ):
         chunks = [make_chunk()]
@@ -416,7 +416,7 @@ class AnswerQuestionOrchestrationTests(unittest.TestCase):
             "reason": None,
         }
 
-        mock_search.return_value = chunks
+        mock_retrieve.return_value = chunks
         mock_generate.return_value = expected
 
         result = answer_question(
@@ -426,7 +426,7 @@ class AnswerQuestionOrchestrationTests(unittest.TestCase):
             limit=3,
         )
 
-        mock_search.assert_called_once_with(
+        mock_retrieve.assert_called_once_with(
             query="What is a variable?",
             course_slug="python-basics",
             topic_slug="variables-data-types",
