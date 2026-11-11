@@ -1,4 +1,3 @@
-
 """Tests for semantic retrieval using Neon pgvector."""
 
 import unittest
@@ -49,13 +48,22 @@ def make_database_connection(rows):
     return connection, cursor
 
 
+def make_embeddings_mock(vector=QUERY_VECTOR, side_effect=None):
+    """Create a mocked LangChain embeddings adapter."""
+
+    embeddings = MagicMock()
+    embeddings.embed_query.return_value = vector
+    embeddings.embed_query.side_effect = side_effect
+    return embeddings
+
+
 class RetrievalValidationTests(unittest.TestCase):
 
     def _assert_invalid_without_api_call(self, **kwargs):
         with (
             patch(
-                "services.retrieval_service.generate_query_embedding"
-            ) as generate,
+                "services.retrieval_service.EduPathGeminiEmbeddings"
+            ) as embeddings_class,
             patch(
                 "services.retrieval_service.load_database_url"
             ) as load_url,
@@ -63,7 +71,7 @@ class RetrievalValidationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 search_knowledge_base(**kwargs)
 
-            generate.assert_not_called()
+            embeddings_class.assert_not_called()
             load_url.assert_not_called()
 
     def test_rejects_empty_query(self):
@@ -105,14 +113,14 @@ class RetrievalDatabaseTests(unittest.TestCase):
 
     def test_returns_matching_educational_chunks(self):
         connection, cursor = make_database_connection([SAMPLE_ROW])
-
         fake_client = MagicMock()
+        embeddings = make_embeddings_mock()
 
         with (
             patch(
-                "services.retrieval_service.generate_query_embedding",
-                return_value=QUERY_VECTOR,
-            ) as generate,
+                "services.retrieval_service.EduPathGeminiEmbeddings",
+                return_value=embeddings,
+            ) as embeddings_class,
             patch(
                 "services.retrieval_service.load_database_url",
                 return_value="postgresql://test",
@@ -128,9 +136,9 @@ class RetrievalDatabaseTests(unittest.TestCase):
                 client=fake_client,
             )
 
-        generate.assert_called_once_with(
-            query="What is a variable?",
-            client=fake_client,
+        embeddings_class.assert_called_once_with(client=fake_client)
+        embeddings.embed_query.assert_called_once_with(
+            "What is a variable?"
         )
 
         connect.assert_called_once_with(
@@ -173,11 +181,12 @@ class RetrievalDatabaseTests(unittest.TestCase):
 
     def test_topic_filter_is_applied(self):
         connection, cursor = make_database_connection([SAMPLE_ROW])
+        embeddings = make_embeddings_mock()
 
         with (
             patch(
-                "services.retrieval_service.generate_query_embedding",
-                return_value=QUERY_VECTOR,
+                "services.retrieval_service.EduPathGeminiEmbeddings",
+                return_value=embeddings,
             ),
             patch(
                 "services.retrieval_service.load_database_url",
@@ -201,14 +210,18 @@ class RetrievalDatabaseTests(unittest.TestCase):
         self.assertIn("variables-data-types", parameters)
         self.assertEqual(parameters[-1], 3)
         self.assertEqual(len(results), 1)
+        embeddings.embed_query.assert_called_once_with(
+            "What is a variable?"
+        )
 
     def test_search_without_topic_does_not_add_topic_filter(self):
         connection, cursor = make_database_connection([])
+        embeddings = make_embeddings_mock()
 
         with (
             patch(
-                "services.retrieval_service.generate_query_embedding",
-                return_value=QUERY_VECTOR,
+                "services.retrieval_service.EduPathGeminiEmbeddings",
+                return_value=embeddings,
             ),
             patch(
                 "services.retrieval_service.load_database_url",
@@ -231,11 +244,12 @@ class RetrievalDatabaseTests(unittest.TestCase):
 
     def test_returns_empty_list_when_no_chunks_match(self):
         connection, _ = make_database_connection([])
+        embeddings = make_embeddings_mock()
 
         with (
             patch(
-                "services.retrieval_service.generate_query_embedding",
-                return_value=QUERY_VECTOR,
+                "services.retrieval_service.EduPathGeminiEmbeddings",
+                return_value=embeddings,
             ),
             patch(
                 "services.retrieval_service.load_database_url",
@@ -254,10 +268,14 @@ class RetrievalDatabaseTests(unittest.TestCase):
         self.assertEqual(results, [])
 
     def test_database_is_not_accessed_when_embedding_fails(self):
+        embeddings = make_embeddings_mock(
+            side_effect=RuntimeError("Embedding service unavailable")
+        )
+
         with (
             patch(
-                "services.retrieval_service.generate_query_embedding",
-                side_effect=RuntimeError("Embedding service unavailable"),
+                "services.retrieval_service.EduPathGeminiEmbeddings",
+                return_value=embeddings,
             ),
             patch(
                 "services.retrieval_service.load_database_url"
@@ -275,13 +293,18 @@ class RetrievalDatabaseTests(unittest.TestCase):
             load_url.assert_not_called()
             connect.assert_not_called()
 
+        embeddings.embed_query.assert_called_once_with(
+            "What is a variable?"
+        )
+
     def test_result_includes_source_and_citation_metadata(self):
         connection, _ = make_database_connection([SAMPLE_ROW])
+        embeddings = make_embeddings_mock()
 
         with (
             patch(
-                "services.retrieval_service.generate_query_embedding",
-                return_value=QUERY_VECTOR,
+                "services.retrieval_service.EduPathGeminiEmbeddings",
+                return_value=embeddings,
             ),
             patch(
                 "services.retrieval_service.load_database_url",
