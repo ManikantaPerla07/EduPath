@@ -168,8 +168,11 @@ python database\run_migrations.py
 ```
 
 The migration command also initializes the checkpoint tables maintained by
-`langgraph-checkpoint-postgres`. Re-running it is safe; the package applies
-only its pending checkpoint-table migrations.
+`langgraph-checkpoint-postgres`. Re-running it is safe; the application
+runner applies only migrations not already recorded in `schema_migrations`,
+and the checkpoint package applies only its pending checkpoint-table
+migrations. Re-run this command after pulling a change that adds a new
+`database/migrations/*.sql` file.
 
 Create or update the Python course and its topic prerequisites:
 
