@@ -6,11 +6,17 @@ import streamlit as st
 
 from services.document_service import (
     DocumentIngestionError,
+    archive_course_document,
     ingest_document,
     list_admin_course_topics,
     list_admin_courses,
     list_course_documents,
+    restore_course_document,
     retry_document_processing,
+)
+from services.course_service import (
+    get_admin_course_publication_status,
+    set_course_publication_status,
 )
 from services.embedding_service import embed_pending_document_chunks
 
@@ -88,7 +94,12 @@ def _render_document_inventory(
             heading_columns[0].markdown(
                 f"**{document['source_title']}**"
             )
-            heading_columns[1].caption(status.replace("_", " ").title())
+            display_status = (
+                "Archived"
+                if document.get("archived_at") is not None
+                else status.replace("_", " ").title()
+            )
+            heading_columns[1].caption(display_status)
 
             st.caption(
                 f"{document['file_name']} · "
@@ -123,7 +134,94 @@ def _render_document_inventory(
 
             action_columns = st.columns(2)
 
-            if status == "failed":
+            if document.get("archived_at") is not None:
+                if action_columns[0].button(
+                    "Restore resource",
+                    key=f"edupath_restore_document_{document_id}",
+                    use_container_width=True,
+                ):
+                    try:
+                        result = restore_course_document(
+                            user_id=user_id,
+                            document_id=document_id,
+                        )
+                        st.session_state["edupath_knowledge_notice"] = (
+                            "The resource has been restored. "
+                            "Its existing chunks and embeddings were preserved. "
+                            "Publish the course again only after reviewing readiness."
+                        )
+                        st.rerun()
+                    except (ValueError, LookupError, PermissionError) as exc:
+                        st.error(str(exc))
+                    except Exception:
+                        logger.exception("Unable to restore archived resource.")
+                        st.error("The resource could not be restored.")
+
+            else:
+                archive_confirmation_key = (
+                    f"edupath_confirm_archive_{document_id}"
+                )
+
+                if action_columns[1].button(
+                    "Archive resource",
+                    key=f"edupath_archive_document_{document_id}",
+                    use_container_width=True,
+                ):
+                    st.session_state[archive_confirmation_key] = True
+
+                if st.session_state.get(archive_confirmation_key):
+                    with st.form(
+                        f"edupath_archive_confirmation_{document_id}"
+                    ):
+                        confirmed = st.checkbox(
+                            "I understand this resource will stop being used "
+                            "for AI Tutor retrieval. Its stored file and "
+                            "embeddings will be preserved."
+                        )
+                        confirm_archive = st.form_submit_button(
+                            "Confirm archive",
+                            type="primary",
+                        )
+
+                    if confirm_archive:
+                        if not confirmed:
+                            st.error("Confirm the archival action first.")
+                        else:
+                            try:
+                                result = archive_course_document(
+                                    user_id=user_id,
+                                    document_id=document_id,
+                                )
+                                st.session_state.pop(
+                                    archive_confirmation_key,
+                                    None,
+                                )
+                                message = (
+                                    "Resource archived. Its original file, "
+                                    "chunks and embeddings remain stored."
+                                )
+                                if result["course_unpublished"]:
+                                    message += (
+                                        " The course was also unpublished "
+                                        "because this was its last fully "
+                                        "embedded active resource."
+                                    )
+                                st.session_state[
+                                    "edupath_knowledge_notice"
+                                ] = message
+                                st.rerun()
+                            except (ValueError, LookupError, PermissionError) as exc:
+                                st.error(str(exc))
+                            except Exception:
+                                logger.exception(
+                                    "Unable to archive educational resource."
+                                )
+                                st.error("The resource could not be archived.")
+
+            if (
+                document.get("archived_at") is None
+                and status == "failed"
+            ):
                 if action_columns[0].button(
                     "Retry extraction and chunking",
                     key=f"edupath_retry_document_{document_id}",
@@ -158,7 +256,8 @@ def _render_document_inventory(
                         st.error("The document retry failed. Please try again.")
 
             elif (
-                status == "ready"
+                document.get("archived_at") is None
+                and status == "ready"
                 and document["chunk_count"] > document["embedded_chunk_count"]
             ):
                 if action_columns[0].button(
@@ -190,7 +289,10 @@ def _render_document_inventory(
                             "you can retry the missing embeddings."
                         )
 
-            if document["processing_status"] == "ready":
+            if (
+                document.get("archived_at") is None
+                and document["processing_status"] == "ready"
+            ):
                 st.caption(
                     "Text extraction is complete. Semantic retrieval can use "
                     "only chunks whose embeddings have been stored."
@@ -245,11 +347,81 @@ def render_knowledge_management(learner: dict) -> None:
     selected_course = course_labels[selected_label]
     course_slug = selected_course["course_slug"]
 
-    if not selected_course["is_published"]:
-        st.warning(
-            "This course is currently unpublished. Resources can be prepared "
-            "now, but learner access depends on the course publication policy."
+    try:
+        publication = get_admin_course_publication_status(
+            user_id=user_id,
+            course_slug=course_slug,
         )
+    except Exception:
+        logger.exception("Unable to load course publication readiness.")
+        st.error("We could not load course publication status.")
+        return
+
+    st.subheader("Course publication")
+    st.caption(
+        "Learners can access this course only while it is published. "
+        "Publishing requires topics, active assessment questions, and at "
+        "least one fully embedded active learning resource."
+    )
+    readiness_columns = st.columns(3)
+    readiness_columns[0].metric("Topics", publication["topic_count"])
+    readiness_columns[1].metric(
+        "Active questions",
+        publication["active_question_count"],
+    )
+    readiness_columns[2].metric(
+        "Fully embedded resources",
+        publication["fully_embedded_document_count"],
+    )
+    st.caption(
+        "Publication readiness: "
+        + ("Ready" if publication["ready_to_publish"] else "Not ready")
+    )
+
+    with st.form("edupath_course_publication_form"):
+        confirm_publication_change = st.checkbox(
+            (
+                "I confirm that learners should be able to access this course."
+                if not publication["is_published"]
+                else "I confirm that learner access to this course should be paused."
+            )
+        )
+        publication_submitted = st.form_submit_button(
+            "Publish course"
+            if not publication["is_published"]
+            else "Unpublish course",
+            type="primary",
+        )
+
+    if publication_submitted:
+        if not confirm_publication_change:
+            st.error("Confirm the course publication change first.")
+        else:
+            try:
+                result = set_course_publication_status(
+                    user_id=user_id,
+                    course_slug=course_slug,
+                    is_published=not publication["is_published"],
+                )
+                st.session_state["edupath_knowledge_notice"] = (
+                    "Course published successfully."
+                    if result["is_published"]
+                    else "Course unpublished. Learner access is paused."
+                )
+                st.rerun()
+            except (ValueError, LookupError, PermissionError) as exc:
+                st.error(str(exc))
+            except Exception:
+                logger.exception("Unable to change course publication status.")
+                st.error("The course publication status could not be changed.")
+
+    if not publication["is_published"]:
+        st.warning(
+            "This course is currently unpublished. Learners cannot access "
+            "its assessment, progress, study-plan or tutor resources."
+        )
+
+    st.divider()
 
     try:
         topics = list_admin_course_topics(
