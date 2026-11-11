@@ -61,7 +61,18 @@ def _format_file_size(size_bytes: int) -> str:
 def _show_admin_notice() -> None:
     notice = st.session_state.pop("edupath_knowledge_notice", None)
 
-    if notice:
+    if isinstance(notice, dict):
+        message = notice.get("message")
+        details = notice.get("details") or []
+        if message:
+            if notice.get("level") == "warning":
+                st.warning(message)
+            else:
+                st.success(message)
+        for detail in details:
+            st.caption(detail)
+    elif notice:
+        # Keep compatibility with notices stored by existing admin actions.
         st.success(notice)
 
 
@@ -398,15 +409,35 @@ def render_knowledge_management(learner: dict) -> None:
                             course_slug=course_slug,
                         )
 
-                    st.session_state["edupath_knowledge_notice"] = (
-                        "Starter resource import finished: "
-                        f"{import_result['imported']} imported, "
-                        f"{import_result['already_present']} already present, "
-                        f"{import_result['archived']} archived, "
-                        f"{import_result['topic_mismatch']} topic mismatches, "
-                        f"{import_result['failed']} failed. "
-                        "Generate missing embeddings for each imported resource."
-                    )
+                    issue_resources = [
+                        resource
+                        for resource in import_result["resources"]
+                        if resource["status"] in {
+                            "archived",
+                            "topic_mismatch",
+                            "failed",
+                        }
+                    ]
+                    st.session_state["edupath_knowledge_notice"] = {
+                        "level": "warning" if issue_resources else "success",
+                        "message": (
+                            "Starter resource import finished: "
+                            f"{import_result['imported']} imported, "
+                            f"{import_result['already_present']} already present, "
+                            f"{import_result['archived']} archived, "
+                            f"{import_result['topic_mismatch']} topic mismatches, "
+                            f"{import_result['failed']} failed. "
+                            "Generate missing embeddings for each imported resource."
+                        ),
+                        "details": [
+                            (
+                                f"{resource['file_name']}: "
+                                f"{resource['status'].replace('_', ' ')}. "
+                                f"{resource.get('message', '')}"
+                            )
+                            for resource in issue_resources
+                        ],
+                    }
                     st.rerun()
                 except (ValueError, LookupError, PermissionError) as exc:
                     st.error(str(exc))
