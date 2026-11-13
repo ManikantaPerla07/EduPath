@@ -102,6 +102,12 @@ def _create_client():
     return genai.Client(api_key=load_gemini_api_key())
 
 
+def create_embedding_client():
+    """Create one reusable Gemini client for an embedding batch."""
+
+    return _create_client()
+
+
 def _generate_embedding(
     prepared_text: str,
     client=None,
