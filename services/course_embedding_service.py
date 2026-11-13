@@ -46,6 +46,7 @@ def embed_pending_course_documents(
         )
         for document in pending_documents
     )
+    total_documents = len(pending_documents)
 
     if total_documents == 0:
         return {
@@ -70,7 +71,6 @@ def embed_pending_course_documents(
     documents_completed = 0
     documents_failed = 0
     documents_skipped = 0
-    total_documents = len(pending_documents)
 
     for index, document in enumerate(pending_documents, start=1):
         document_id = str(document["document_id"])
