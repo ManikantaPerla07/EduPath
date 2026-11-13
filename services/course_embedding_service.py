@@ -3,7 +3,10 @@
 from typing import Any, Callable
 
 from services.document_service import list_course_documents
-from services.embedding_service import embed_pending_document_chunks
+from services.embedding_service import (
+    create_embedding_client,
+    embed_pending_document_chunks,
+)
 
 
 ProgressCallback = Callable[[int, int, str], None]
@@ -44,6 +47,23 @@ def embed_pending_course_documents(
         for document in pending_documents
     )
 
+    if total_documents == 0:
+        return {
+            "course_slug": course_slug,
+            "documents_considered": 0,
+            "documents_completed": 0,
+            "documents_failed": 0,
+            "documents_skipped": 0,
+            "chunks_pending_at_start": 0,
+            "chunks_saved": 0,
+            "chunks_skipped_due_to_concurrent_update": 0,
+            "resources": [],
+        }
+
+    # Validate credentials and create one client before starting. A missing
+    # key should stop the batch once, not produce one failure per document.
+    embedding_client = create_embedding_client()
+
     results: list[dict[str, Any]] = []
     chunks_saved = 0
     chunks_skipped = 0
@@ -54,7 +74,11 @@ def embed_pending_course_documents(
 
     for index, document in enumerate(pending_documents, start=1):
         document_id = str(document["document_id"])
-        source_title = str(document.get("source_title") or document.get("file_name") or document_id)
+        source_title = str(
+            document.get("source_title")
+            or document.get("file_name")
+            or document_id
+        )
 
         try:
             # Re-read the inventory before each document. This both confirms
@@ -95,7 +119,10 @@ def embed_pending_course_documents(
                     "error_type": None,
                 })
             else:
-                embedding_result = embed_pending_document_chunks(document_id)
+                embedding_result = embed_pending_document_chunks(
+                    document_id,
+                    client=embedding_client,
+                )
                 saved = int(embedding_result.get("embeddings_saved") or 0)
                 skipped = int(
                     embedding_result.get("skipped_due_to_concurrent_update") or 0
