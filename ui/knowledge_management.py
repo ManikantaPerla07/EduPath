@@ -564,6 +564,11 @@ def render_knowledge_management(learner: dict) -> None:
                     text="Embedding batch finished. Refreshing inventory...",
                 )
                 st.rerun()
+            except ValueError as exc:
+                st.error(
+                    "Gemini embedding setup needs attention: "
+                    + str(exc)
+                )
             except PermissionError as exc:
                 st.error(str(exc))
             except Exception:
