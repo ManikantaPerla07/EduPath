@@ -57,21 +57,32 @@ class CourseEmbeddingCoordinatorTests(unittest.TestCase):
         ]
         progress = []
 
-        result = embed_pending_course_documents(
-            USER_ID,
-            COURSE_SLUG,
-            progress_callback=lambda current, total, title: progress.append(
-                (current, total, title)
-            ),
-        )
+        with patch(
+            "services.course_embedding_service.create_embedding_client",
+            return_value="shared-client",
+        ) as create_client:
+            result = embed_pending_course_documents(
+                USER_ID,
+                COURSE_SLUG,
+                progress_callback=lambda current, total, title: progress.append(
+                    (current, total, title)
+                ),
+            )
 
+        create_client.assert_called_once_with()
         self.assertEqual(result["documents_considered"], 2)
         self.assertEqual(result["documents_completed"], 2)
         self.assertEqual(result["documents_failed"], 0)
         self.assertEqual(result["documents_skipped"], 0)
         self.assertEqual(result["chunks_pending_at_start"], 4)
         self.assertEqual(result["chunks_saved"], 4)
-        self.assertEqual(embed_document.call_args_list, [call("doc-a"), call("doc-b")])
+        self.assertEqual(
+            embed_document.call_args_list,
+            [
+                call("doc-a", client="shared-client"),
+                call("doc-b", client="shared-client"),
+            ],
+        )
         self.assertEqual(
             progress,
             [(1, 2, "Python Basics"), (2, 2, "Python Loops")],
@@ -99,7 +110,11 @@ class CourseEmbeddingCoordinatorTests(unittest.TestCase):
             },
         ]
 
-        result = embed_pending_course_documents(USER_ID, COURSE_SLUG)
+        with patch(
+            "services.course_embedding_service.create_embedding_client",
+            return_value="shared-client",
+        ):
+            result = embed_pending_course_documents(USER_ID, COURSE_SLUG)
 
         self.assertEqual(result["documents_failed"], 1)
         self.assertEqual(result["documents_completed"], 1)
@@ -120,7 +135,11 @@ class CourseEmbeddingCoordinatorTests(unittest.TestCase):
         ]
         list_documents.side_effect = [initial, refreshed]
 
-        result = embed_pending_course_documents(USER_ID, COURSE_SLUG)
+        with patch(
+            "services.course_embedding_service.create_embedding_client",
+            return_value="shared-client",
+        ):
+            result = embed_pending_course_documents(USER_ID, COURSE_SLUG)
 
         self.assertEqual(result["documents_skipped"], 1)
         self.assertEqual(result["resources"][0]["status"], "already_complete")
@@ -143,10 +162,17 @@ class CourseEmbeddingCoordinatorTests(unittest.TestCase):
             PermissionError("Admin access revoked"),
         ]
 
-        with self.assertRaises(PermissionError):
-            embed_pending_course_documents(USER_ID, COURSE_SLUG)
+        with patch(
+            "services.course_embedding_service.create_embedding_client",
+            return_value="shared-client",
+        ):
+            with self.assertRaises(PermissionError):
+                embed_pending_course_documents(USER_ID, COURSE_SLUG)
 
-        embed_document.assert_called_once_with("doc-a")
+        embed_document.assert_called_once_with(
+            "doc-a",
+            client="shared-client",
+        )
 
     @patch("services.course_embedding_service.embed_pending_document_chunks")
     @patch("services.course_embedding_service.list_course_documents")
@@ -160,8 +186,12 @@ class CourseEmbeddingCoordinatorTests(unittest.TestCase):
             document("doc-archived", "Old note", 1, archived_at="archived"),
         ]
 
-        result = embed_pending_course_documents(USER_ID, COURSE_SLUG)
+        with patch(
+            "services.course_embedding_service.create_embedding_client"
+        ) as create_client:
+            result = embed_pending_course_documents(USER_ID, COURSE_SLUG)
 
+        create_client.assert_not_called()
         self.assertEqual(result["documents_considered"], 0)
         self.assertEqual(result["chunks_pending_at_start"], 0)
         self.assertEqual(result["chunks_saved"], 0)
