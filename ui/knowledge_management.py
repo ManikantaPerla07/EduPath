@@ -24,6 +24,9 @@ from services.course_service import (
     set_course_publication_status,
 )
 from services.embedding_service import embed_pending_document_chunks
+from services.course_embedding_service import (
+    embed_pending_course_documents,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -449,6 +452,129 @@ def render_knowledge_management(learner: dict) -> None:
                         "The sample resources could not be imported. "
                         "Check the application log and try again."
                     )
+    st.subheader("Embedding generation")
+    try:
+        embedding_inventory = list_course_documents(
+            user_id=user_id,
+            course_slug=course_slug,
+        )
+    except Exception:
+        logger.exception(
+            "Unable to prepare the course-wide embedding action."
+        )
+        st.error(
+            "We couldn't check pending embeddings. "
+            "Use the individual resource actions below or refresh the page."
+        )
+        embedding_inventory = []
+
+    pending_embedding_documents = [
+        document
+        for document in embedding_inventory
+        if document.get("archived_at") is None
+        and document.get("processing_status") == "ready"
+        and int(document.get("chunk_count") or 0)
+        > int(document.get("embedded_chunk_count") or 0)
+    ]
+    pending_embedding_chunks = sum(
+        int(document.get("chunk_count") or 0)
+        - int(document.get("embedded_chunk_count") or 0)
+        for document in pending_embedding_documents
+    )
+
+    with st.container(border=True, key="edupath_course_embedding_batch"):
+        embedding_metrics = st.columns(2)
+        embedding_metrics[0].metric(
+            "Resources with pending embeddings",
+            len(pending_embedding_documents),
+        )
+        embedding_metrics[1].metric(
+            "Pending chunk embeddings",
+            pending_embedding_chunks,
+        )
+        st.caption(
+            "This processes active, ready resources in sequence. "
+            "Each missing chunk requires a Gemini Embedding API request. "
+            "Progress is saved chunk by chunk, so a failed run can be resumed."
+        )
+
+        if st.button(
+            "Generate all pending embeddings",
+            key="edupath_generate_all_course_embeddings",
+            type="primary",
+            width="stretch",
+            disabled=not pending_embedding_documents,
+        ):
+            progress_bar = st.progress(
+                0,
+                text="Preparing the embedding batch...",
+            )
+
+            def update_embedding_progress(
+                current: int,
+                total: int,
+                source_title: str,
+            ) -> None:
+                if total > 0:
+                    progress_bar.progress(
+                        current / total,
+                        text=(
+                            f"Embedding resource {current} of {total}: "
+                            f"{source_title}"
+                        ),
+                    )
+
+            try:
+                result = embed_pending_course_documents(
+                    user_id=user_id,
+                    course_slug=course_slug,
+                    progress_callback=update_embedding_progress,
+                )
+                failed_resources = [
+                    resource
+                    for resource in result["resources"]
+                    if resource["status"] in {"failed", "incomplete"}
+                ]
+                details = [
+                    (
+                        f"{resource['source_title']}: "
+                        f"{resource['status']}"
+                        + (
+                            f" ({resource['error_type']})"
+                            if resource.get("error_type")
+                            else ""
+                        )
+                    )
+                    for resource in failed_resources
+                ]
+                st.session_state["edupath_knowledge_notice"] = {
+                    "level": "warning" if failed_resources else "success",
+                    "message": (
+                        "Course embedding batch finished: "
+                        f"{result['documents_completed']} resources completed, "
+                        f"{result['documents_failed']} failed/incomplete, "
+                        f"{result['documents_skipped']} skipped; "
+                        f"{result['chunks_saved']} new embeddings saved from "
+                        f"{result['chunks_pending_at_start']} pending chunks."
+                    ),
+                    "details": details,
+                }
+                progress_bar.progress(
+                    1.0,
+                    text="Embedding batch finished. Refreshing inventory...",
+                )
+                st.rerun()
+            except PermissionError as exc:
+                st.error(str(exc))
+            except Exception:
+                logger.exception(
+                    "The course-wide embedding batch could not complete."
+                )
+                st.error(
+                    "The embedding batch stopped unexpectedly. "
+                    "Already saved vectors were preserved; run it again to resume."
+                )
+
     readiness_columns = st.columns(4)
     readiness_columns[0].metric("Topics", publication["topic_count"])
     readiness_columns[1].metric(
