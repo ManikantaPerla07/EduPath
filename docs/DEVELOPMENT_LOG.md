@@ -969,3 +969,21 @@ Date: 2026-11-11
 
 ### Next
 Import the missing starter resources into the intended Neon development/demo database, generate all pending chunk embeddings, review each topic's coverage and content, and run the 18-query retrieval evaluation before publishing the course.
+
+
+## 2026-11-13 — Course-Level Resumable Embedding Batch
+
+### Completed
+- Added an administrator-authorized course-level embedding coordinator.
+- Added one-click **Generate all pending embeddings** to Knowledge Management.
+- Previews the number of active, ready resources and chunks still requiring embeddings.
+- Reuses a single Gemini client for the batch.
+- Rechecks administrator access and resource state before each document.
+- Continues past ordinary per-resource failures, reports failed/incomplete resources, and aborts if administrator access is lost.
+- Reuses the existing chunk-by-chunk persistence behavior, so saved vectors survive and retries process only missing chunks.
+- Added unit tests for successful aggregation, partial failure, concurrent completion, lost admin access and the no-work case.
+
+### Next
+- Pull the batch implementation and run focused/full tests locally.
+- Generate the outstanding Neon embeddings through Knowledge Management.
+- Confirm 9/9 topic coverage, run the 18-query RAG retrieval evaluation, inspect misses, then publish the course only after content review.
