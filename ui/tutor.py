@@ -26,6 +26,7 @@ from services.chat_service import (
     save_chat_feedback,
     save_chat_message,
 )
+from services.subjective_evaluation_service import evaluate_subjective_explanation
 
 
 logger = logging.getLogger(__name__)
@@ -585,6 +586,118 @@ def _process_question(
     st.rerun()
 
 
+SUBJECTIVE_PRACTICE_TOPICS = {
+    "loops_boundary": {
+        "title": "Loops: range(start, stop) Boundary Mechanics",
+        "topic_slug": "loops",
+        "question": "Explain how range(start, stop) works in a Python for loop. What numbers does range(1, 5) produce and why?",
+        "reference_answer": (
+            "In Python, a for loop iterates through sequences. range(start, stop) generates integers "
+            "beginning at start and stopping strictly before stop. The upper bound is exclusive, so "
+            "range(1, 5) yields 1, 2, 3, and 4. To include 5, the stop bound must be 6."
+        ),
+    },
+    "equality_vs_assignment": {
+        "title": "Variables: Assignment (=) vs Equality (==)",
+        "topic_slug": "variables",
+        "question": "What is the difference between single equals (=) and double equals (==) in Python?",
+        "reference_answer": (
+            "In Python, single equals = is the assignment operator used to store a value into a variable. "
+            "Double equals == is a comparison operator that checks whether two values are equal and returns "
+            "a boolean True or False."
+        ),
+    },
+    "list_mutation": {
+        "title": "Data Structures: Mutating Lists During Iteration",
+        "topic_slug": "loops",
+        "question": "Why is it dangerous to remove items from a list while iterating over it in a for loop?",
+        "reference_answer": (
+            "Removing items from a list while iterating directly mutates the collection in-place and shifts index "
+            "pointers. This causes the loop iterator to skip elements or trigger index errors. "
+            "Instead, iterate over a shallow copy or use a list comprehension."
+        ),
+    },
+}
+
+
+def _render_subjective_practice_expander(user_id: str) -> None:
+    """Render the rubric-based subjective explanation practice module."""
+    if not isinstance(user_id, str) or not user_id.strip():
+        return
+
+    with st.expander("📝 Conceptual Self-Assessment (Rubric-Based AI Evaluation)", expanded=False):
+        st.markdown(
+            "Test your understanding by writing an explanation in your own words. "
+            "EduPath evaluates your reasoning across a **four-dimensional pedagogical rubric** "
+            "and diagnoses common conceptual misconceptions."
+        )
+
+        selected_key = st.selectbox(
+            "Choose a core Python concept to explain:",
+            options=list(SUBJECTIVE_PRACTICE_TOPICS.keys()),
+            format_func=lambda k: SUBJECTIVE_PRACTICE_TOPICS[k]["title"],
+            key="edupath_subjective_topic_select",
+        )
+        selected_topic = SUBJECTIVE_PRACTICE_TOPICS[selected_key]
+
+        st.info(f"**Prompt:** {selected_topic['question']}")
+
+        student_explanation = st.text_area(
+            "Your explanation:",
+            height=120,
+            placeholder="Type your explanation here. Include steps, analogies, or syntax rules...",
+            key=f"edupath_subj_text_{selected_key}",
+        )
+
+        if st.button("Evaluate My Explanation", key=f"edupath_subj_submit_{selected_key}", type="primary"):
+            if not student_explanation or not student_explanation.strip():
+                st.warning("Please enter your explanation before submitting.")
+                return
+
+            try:
+                eval_result = evaluate_subjective_explanation(
+                    question=selected_topic["question"],
+                    reference_answer=selected_topic["reference_answer"],
+                    student_explanation=student_explanation.strip(),
+                    topic_slug=selected_topic["topic_slug"],
+                )
+
+                score = eval_result["score_percent"]
+                passed = eval_result["passed"]
+                rubric = eval_result["rubric_breakdown"]
+                misconceptions = eval_result["detected_misconceptions"]
+                feedback = eval_result["feedback"]
+
+                st.markdown("---")
+                if passed:
+                    st.success(f"### 🎉 Overall Score: {score}% — Strong Conceptual Understanding")
+                else:
+                    st.warning(f"### ⚠️ Overall Score: {score}% — Developing Conceptual Understanding")
+
+                st.markdown("#### 📊 Pedagogical Rubric Breakdown")
+                r_col1, r_col2, r_col3, r_col4 = st.columns(4)
+                r_col1.metric("Conceptual Accuracy (40%)", f"{rubric['conceptual_accuracy']}%")
+                r_col2.metric("Reasoning & Logic (30%)", f"{rubric['reasoning_and_logic']}%")
+                r_col3.metric("Edge Cases & Gotchas (15%)", f"{rubric['edge_cases_and_gotchas']}%")
+                r_col4.metric("Clarity of Expression (15%)", f"{rubric['clarity_of_expression']}%")
+
+                if misconceptions:
+                    st.error("#### ⚠️ Detected Conceptual Misconception(s)")
+                    for m in misconceptions:
+                        st.markdown(f"- **Misconception:** {m['misconception']}\n  - **Correction:** {m['correction']}")
+
+                st.info(f"💡 **Constructive Formative Feedback:**\n\n{feedback}")
+
+                st.caption(
+                    "🔒 *Server-side authorization verified. Note: This rubric assessment is formative and "
+                    "designed for self-evaluation. It does not alter your official mastery records.*"
+                )
+
+            except Exception as exc:
+                logger.exception("Subjective evaluation failed: %s", exc)
+                st.error("Could not evaluate your explanation. Please try again.")
+
+
 def render_tutor(learner: dict) -> None:
     """Render the authenticated learner's conversational AI Tutor."""
 
@@ -658,10 +771,27 @@ def render_tutor(learner: dict) -> None:
         )
         return
 
-    question = st.chat_input(
+    _render_subjective_practice_expander(user_id=user_id)
+
+    quick_prompt = None
+    if selected_session_id is not None:
+        chip_col1, chip_col2, chip_col3 = st.columns(3)
+        with chip_col1:
+            if st.button("💡 Get a Hint", key="edupath_hint_chip", width="stretch", help="Request a progressive hint without revealing the full solution"):
+                quick_prompt = "Can you give me a progressive hint on what we're discussing without giving away the full answer?"
+        with chip_col2:
+            if st.button("✍️ Test Understanding", key="edupath_practice_chip", width="stretch", help="Request a quick exercise or question to test yourself"):
+                quick_prompt = "Could you give me a short practice question or code puzzle to test my understanding of this concept?"
+        with chip_col3:
+            if st.button("🔍 Explain with Analogy", key="edupath_analogy_chip", width="stretch", help="Request an everyday analogy"):
+                quick_prompt = "Can you explain this concept using a simple everyday analogy and a small code example?"
+
+    input_question = st.chat_input(
         "Ask your Python question...",
         max_chars=2000,
     )
+
+    question = quick_prompt or input_question
 
     if question and question.strip():
         _process_question(

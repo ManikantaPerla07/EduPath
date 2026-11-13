@@ -316,3 +316,187 @@ def confirm_adult_status(user_id: str) -> None:
 
             if cursor.rowcount != 1:
                 raise ValueError("Learner profile not found.")
+
+
+VALID_PROFICIENCY_LEVELS = {"beginner", "intermediate", "advanced"}
+VALID_EXPLANATION_STYLES = {"simple", "step_by_step", "example_first"}
+MIN_DAILY_STUDY_MINUTES = 10
+MAX_DAILY_STUDY_MINUTES = 600
+MAX_GOAL_LENGTH = 500
+MAX_LANGUAGE_LENGTH = 50
+
+
+def get_learner_profile(user_id: str) -> dict[str, Any]:
+    """Retrieve the full profile for an active, authenticated learner."""
+    try:
+        learner_id = UUID(str(user_id))
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError("A valid learner user ID is required.")
+
+    with psycopg.connect(
+        load_database_url(),
+        connect_timeout=20,
+    ) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    u.user_id,
+                    u.email,
+                    u.display_name,
+                    u.role,
+                    u.is_active,
+                    lp.adult_confirmation,
+                    lp.proficiency_level,
+                    lp.preferred_language,
+                    lp.explanation_style,
+                    lp.daily_study_minutes,
+                    lp.learning_goal
+                FROM users AS u
+                JOIN learner_profiles AS lp
+                    ON lp.user_id = u.user_id
+                WHERE u.user_id = %s
+                  AND u.is_active = TRUE;
+                """,
+                (learner_id,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                raise ValueError("Learner account or profile not found.")
+
+            return {
+                "user_id": str(row[0]),
+                "email": row[1],
+                "display_name": row[2],
+                "role": row[3],
+                "is_active": row[4],
+                "adult_confirmation": row[5],
+                "proficiency_level": row[6],
+                "preferred_language": row[7],
+                "explanation_style": row[8],
+                "daily_study_minutes": row[9],
+                "learning_goal": row[10],
+            }
+
+
+def update_learner_profile(
+    user_id: str,
+    *,
+    proficiency_level: str | None = None,
+    explanation_style: str | None = None,
+    daily_study_minutes: int | None = None,
+    preferred_language: str | None = None,
+    learning_goal: str | None = None,
+) -> dict[str, Any]:
+    """
+    Update learner profile preferences with server-side validation.
+
+    Only provided non-None values are updated. All fields are validated
+    against schema constraints.
+    """
+    try:
+        learner_id = UUID(str(user_id))
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError("A valid learner user ID is required.")
+
+    set_clauses = []
+    params = []
+
+    if proficiency_level is not None:
+        if not isinstance(proficiency_level, str) or proficiency_level.lower().strip() not in VALID_PROFICIENCY_LEVELS:
+            raise ValueError(
+                f"Proficiency level must be one of: {', '.join(sorted(VALID_PROFICIENCY_LEVELS))}."
+            )
+        set_clauses.append("proficiency_level = %s")
+        params.append(proficiency_level.lower().strip())
+
+    if explanation_style is not None:
+        if not isinstance(explanation_style, str) or explanation_style.lower().strip() not in VALID_EXPLANATION_STYLES:
+            raise ValueError(
+                f"Explanation style must be one of: {', '.join(sorted(VALID_EXPLANATION_STYLES))}."
+            )
+        set_clauses.append("explanation_style = %s")
+        params.append(explanation_style.lower().strip())
+
+    if daily_study_minutes is not None:
+        if (
+            isinstance(daily_study_minutes, bool)
+            or not isinstance(daily_study_minutes, int)
+            or not MIN_DAILY_STUDY_MINUTES <= daily_study_minutes <= MAX_DAILY_STUDY_MINUTES
+        ):
+            raise ValueError(
+                f"Daily study minutes must be an integer between {MIN_DAILY_STUDY_MINUTES} and {MAX_DAILY_STUDY_MINUTES}."
+            )
+        set_clauses.append("daily_study_minutes = %s")
+        params.append(daily_study_minutes)
+
+    if preferred_language is not None:
+        if not isinstance(preferred_language, str) or not preferred_language.strip():
+            raise ValueError("Preferred language cannot be empty.")
+        lang = preferred_language.strip()
+        if len(lang) > MAX_LANGUAGE_LENGTH:
+            raise ValueError(f"Preferred language cannot exceed {MAX_LANGUAGE_LENGTH} characters.")
+        set_clauses.append("preferred_language = %s")
+        params.append(lang)
+
+    if learning_goal is not None:
+        if not isinstance(learning_goal, str):
+            raise ValueError("Learning goal must be a string.")
+        goal = learning_goal.strip()
+        if len(goal) > MAX_GOAL_LENGTH:
+            raise ValueError(f"Learning goal cannot exceed {MAX_GOAL_LENGTH} characters.")
+        set_clauses.append("learning_goal = %s")
+        params.append(goal if goal else None)
+
+    if not set_clauses:
+        # Nothing to update, just return current profile
+        return get_learner_profile(user_id)
+
+    set_clauses.append("updated_at = NOW()")
+
+    with psycopg.connect(
+        load_database_url(),
+        connect_timeout=20,
+    ) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT user_id
+                FROM users
+                WHERE user_id = %s
+                  AND is_active = TRUE
+                FOR SHARE;
+                """,
+                (learner_id,),
+            )
+            if cursor.fetchone() is None:
+                raise PermissionError("An active learner account is required.")
+
+            query = f"""
+                UPDATE learner_profiles
+                SET {', '.join(set_clauses)}
+                WHERE user_id = %s
+                RETURNING
+                    user_id,
+                    proficiency_level,
+                    preferred_language,
+                    explanation_style,
+                    daily_study_minutes,
+                    learning_goal,
+                    adult_confirmation;
+            """
+            params.append(learner_id)
+            cursor.execute(query, params)
+            row = cursor.fetchone()
+            if row is None:
+                raise ValueError("Learner profile not found.")
+
+            return {
+                "user_id": str(row[0]),
+                "proficiency_level": row[1],
+                "preferred_language": row[2],
+                "explanation_style": row[3],
+                "daily_study_minutes": row[4],
+                "learning_goal": row[5],
+                "adult_confirmation": row[6],
+            }

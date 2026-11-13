@@ -72,24 +72,26 @@ EduPath/
 │   ├── run_migrations.py
 │   ├── seed_course.py
 │   └── seed_questions.py
-├── docs/
-│   └── DEVELOPMENT_LOG.md  # Implementation milestones and decisions
+├── demonstrations/         # Multi-level few-shot adaptation demonstration
+├── docs/                   # Complete architectural, SRS, PRD, and audit documentation
+│   ├── ARCHITECTURE.md
+│   ├── DATABASE.md
+│   ├── DEVELOPMENT_LOG.md
+│   ├── EVALUATION.md
+│   ├── EXPERIMENTS.md
+│   ├── FINAL_PROJECT_REPORT.md
+│   ├── PRD.md
+│   ├── SECURITY.md
+│   ├── SRS.md
+│   └── USER_GUIDE.md
 ├── evaluation/             # Golden-query RAG retrieval benchmark and runner
+├── experiments/            # Ten self-contained academic practicals (LoRA, FAISS, ReAct, etc.)
+├── interview_preparation/  # Viva defense preparation guides and mock questions
 ├── rag/                    # Retrieval-related modules
-├── sample_documents/       # Nine topic-aligned Python learning resources and upload guide
-├── services/
-│   ├── agent_telemetry_service.py       # Privacy-conscious Tutor run lifecycle tracking
-│   ├── agent_telemetry_insights_service.py # Admin-only aggregate Tutor run metrics
-│   ├── langchain_document_processing.py # Page-aware LangChain loader/splitter
-│   ├── langchain_embeddings.py          # Gemini Embedding 2 adapter
-│   ├── langchain_retriever.py           # Neon pgvector retriever adapter
-│   ├── tutor_feedback_service.py        # Admin-only aggregate Tutor feedback insights
-│   └── ...                              # Application and domain services
-├── tests/                  # Automated tests
+├── sample_documents/       # Topic-aligned Python learning resources and upload guide
+├── services/               # Application and domain services
+├── tests/                  # Automated tests (569 tests, 77 subtests)
 ├── ui/                     # Streamlit learner and administrator interfaces
-│   ├── knowledge_management.py # Admin-only resource upload and processing status
-│   ├── tutor_feedback.py      # Admin-only aggregate feedback insights
-│   └── agent_telemetry.py     # Admin-only aggregate Tutor run operations
 ├── .streamlit/
 │   ├── config.toml
 │   └── secrets.toml.example
@@ -242,7 +244,7 @@ python -m compileall -q agents services ui tests evaluation
 git diff --check
 ```
 
-The latest user-verified full-suite result before the learner-account write-lock refinement was **530 passed, 77 subtests passed** on November 11, 2026. Re-run the suite after pulling later commits; this is a historical result, not a guarantee for subsequent code revisions.
+The verified full-suite test baseline is **569 passed, 77 subtests passed** (0 failures) on November 14, 2026. Compileall across all modules completes with 0 errors, and git diff has 0 whitespace warnings.
 
 ## Evaluate RAG retrieval
 

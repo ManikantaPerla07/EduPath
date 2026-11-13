@@ -1,11 +1,16 @@
 """Tests for request-limit and concurrent-run handling in the Tutor UI."""
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from services.agent_telemetry_service import AgentRunAlreadyActiveError
 from services.chat_service import ChatRateLimitError, ChatSessionBusyError
-from ui.tutor import _process_question, _render_conversation_settings
+from ui.tutor import (
+    SUBJECTIVE_PRACTICE_TOPICS,
+    _process_question,
+    _render_conversation_settings,
+    _render_subjective_practice_expander,
+)
 
 
 USER_ID = "11111111-1111-4111-8111-111111111111"
@@ -119,6 +124,66 @@ class TutorConversationDeletionUITests(unittest.TestCase):
         )
         show_error.assert_not_called()
 
+
+class TutorSubjectivePracticeUITests(unittest.TestCase):
+
+    def test_subjective_practice_topics_exist_and_have_required_fields(self):
+        """Pre-configured conceptual practice topics must have questions and reference answers."""
+        self.assertIn("loops_boundary", SUBJECTIVE_PRACTICE_TOPICS)
+        self.assertIn("equality_vs_assignment", SUBJECTIVE_PRACTICE_TOPICS)
+        self.assertIn("list_mutation", SUBJECTIVE_PRACTICE_TOPICS)
+
+        for key, topic in SUBJECTIVE_PRACTICE_TOPICS.items():
+            self.assertIn("title", topic)
+            self.assertIn("question", topic)
+            self.assertIn("reference_answer", topic)
+            self.assertTrue(len(topic["question"]) > 10)
+            self.assertTrue(len(topic["reference_answer"]) > 10)
+
+    @patch("ui.tutor.st.expander")
+    def test_empty_user_id_skips_rendering(self, mock_expander):
+        """Unauthenticated or empty user ID must return immediately without rendering."""
+        _render_subjective_practice_expander(user_id="")
+        mock_expander.assert_not_called()
+
+        _render_subjective_practice_expander(user_id="   ")
+        mock_expander.assert_not_called()
+
+    @patch("ui.tutor.st.caption")
+    @patch("ui.tutor.st.info")
+    @patch("ui.tutor.st.columns")
+    @patch("ui.tutor.st.markdown")
+    @patch("ui.tutor.st.success")
+    @patch("ui.tutor.st.button", return_value=True)
+    @patch("ui.tutor.st.text_area", return_value="range(1, 5) generates 1, 2, 3, 4 stopping before 5.")
+    @patch("ui.tutor.st.selectbox", return_value="loops_boundary")
+    @patch("ui.tutor.st.expander")
+    def test_subjective_practice_evaluates_and_renders_rubric(
+        self,
+        mock_expander,
+        mock_selectbox,
+        mock_text_area,
+        mock_button,
+        mock_success,
+        mock_markdown,
+        mock_columns,
+        mock_info,
+        mock_caption,
+    ):
+        """When learner submits an explanation, it computes rubrics and renders columns."""
+        # Create mock columns
+        col1, col2, col3, col4 = MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        mock_columns.return_value = [col1, col2, col3, col4]
+
+        _render_subjective_practice_expander(user_id=USER_ID)
+
+        mock_columns.assert_called_once_with(4)
+        col1.metric.assert_called_once()
+        col2.metric.assert_called_once()
+        col3.metric.assert_called_once()
+        col4.metric.assert_called_once()
+        mock_caption.assert_called_once()
+        self.assertIn("does not alter your official mastery", mock_caption.call_args.args[0])
 
 
 if __name__ == "__main__":

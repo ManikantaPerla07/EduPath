@@ -13,6 +13,7 @@ from services.course_service import is_course_published
 from ui.assessment import render_assessment
 from ui.study_plan import render_study_plan
 from ui.tutor import render_tutor
+from ui.learner_profile import render_learner_profile
 from ui.knowledge_management import render_knowledge_management
 from ui.tutor_feedback import render_tutor_feedback
 from ui.agent_telemetry import render_agent_telemetry
@@ -295,6 +296,12 @@ def navigate_to_study_plan():
     st.session_state["edupath_navigation"] = "Study Plan"
 
 
+def navigate_to_profile():
+    """Navigate to the learner profile page."""
+
+    st.session_state["edupath_navigation"] = "Learner Profile"
+
+
 def select_workspace_page(page: str) -> None:
     """Persist the selected workspace page before Streamlit reruns."""
 
@@ -422,6 +429,10 @@ def render_workspace_content(
         render_tutor(learner)
         return
 
+    if selected_page == "Learner Profile":
+        render_learner_profile(learner)
+        return
+
     if selected_page == "Python Assessment":
         render_assessment(learner)
         return
@@ -524,6 +535,15 @@ def render_workspace_content(
             f"**Explanation style:** "
             f"{learner['explanation_style'].replace('_', ' ').title()}"
         )
+        if learner.get("learning_goal"):
+            st.write(f"**Learning goal:** {learner['learning_goal']}")
+        st.button(
+            "Edit Profile & Preferences",
+            key="edupath_dashboard_edit_profile_btn",
+            on_click=navigate_to_profile,
+            type="secondary",
+            width="stretch",
+        )
 
 
 
@@ -548,6 +568,7 @@ def home_screen(learner):
 
     navigation_options = [
         "Dashboard",
+        "Learner Profile",
         "AI Tutor",
         "Python Assessment",
         "Study Plan",

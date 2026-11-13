@@ -204,9 +204,14 @@ def _build_prompt(
         if not isinstance(instruction, str) or not instruction.strip():
             raise ValueError("Teaching guidance must contain an instruction.")
 
+        few_shot_context = ""
+        few_shot_section = teaching_guidance.get("few_shot_section")
+        if isinstance(few_shot_section, str) and few_shot_section.strip():
+            few_shot_context = f"\n\n{few_shot_section.strip()}"
+
         teaching_section = f"""
 TEACHING APPROACH (STYLE ONLY, NOT EVIDENCE):
-{instruction.strip()}
+{instruction.strip()}{few_shot_context}
 
 Use this guidance only to adjust the explanation style.
 It does not provide factual evidence.

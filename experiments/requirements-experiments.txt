@@ -1,0 +1,10 @@
+# Optional Experimental Dependencies for CSE473 Academic Practicals
+# Note: Production EduPath does NOT require these dependencies (operating on ₹0 budget).
+# All experiments in experiments/ include pure Python / NumPy engines that run out-of-the-box.
+
+numpy>=1.26.0
+matplotlib>=3.8.0
+scikit-learn>=1.4.0
+faiss-cpu>=1.8.0
+torch>=2.2.0
+peft>=0.10.0

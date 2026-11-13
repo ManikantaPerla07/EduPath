@@ -269,6 +269,119 @@ class LearnerServiceTests(unittest.TestCase):
 
         self.assertEqual(cursor.execute.call_count, 2)
 
+    def test_get_learner_profile_success(self):
+        from services.learner_service import get_learner_profile
+
+        user_id = uuid4()
+        row = (
+            user_id,
+            "learner@example.com",
+            "Learner",
+            "student",
+            True,
+            True,
+            "intermediate",
+            "English",
+            "step_by_step",
+            45,
+            "Learn loops",
+        )
+        connection, cursor = self.make_database_mock([row])
+
+        with patch(
+            "services.learner_service.psycopg.connect",
+            return_value=connection,
+        ), patch(
+            "services.learner_service.load_database_url",
+            return_value="postgresql://test",
+        ):
+            profile = get_learner_profile(str(user_id))
+
+        self.assertEqual(profile["user_id"], str(user_id))
+        self.assertEqual(profile["proficiency_level"], "intermediate")
+        self.assertEqual(profile["learning_goal"], "Learn loops")
+
+    def test_get_learner_profile_rejects_invalid_uuid(self):
+        from services.learner_service import get_learner_profile
+
+        with self.assertRaises(ValueError):
+            get_learner_profile("not-a-valid-uuid")
+
+    def test_update_learner_profile_success(self):
+        from services.learner_service import update_learner_profile
+
+        user_id = uuid4()
+        user_check = (user_id,)
+        updated_row = (
+            user_id,
+            "advanced",
+            "Spanish",
+            "example_first",
+            60,
+            "Master algorithms",
+            True,
+        )
+        connection, cursor = self.make_database_mock([user_check, updated_row])
+
+        with patch(
+            "services.learner_service.psycopg.connect",
+            return_value=connection,
+        ), patch(
+            "services.learner_service.load_database_url",
+            return_value="postgresql://test",
+        ):
+            result = update_learner_profile(
+                str(user_id),
+                proficiency_level="advanced",
+                explanation_style="example_first",
+                daily_study_minutes=60,
+                preferred_language="Spanish",
+                learning_goal="Master algorithms",
+            )
+
+        self.assertEqual(result["proficiency_level"], "advanced")
+        self.assertEqual(result["daily_study_minutes"], 60)
+        self.assertEqual(result["learning_goal"], "Master algorithms")
+
+    def test_update_learner_profile_validates_constraints(self):
+        from services.learner_service import update_learner_profile
+
+        user_id = uuid4()
+        # Invalid proficiency
+        with self.assertRaises(ValueError):
+            update_learner_profile(str(user_id), proficiency_level="expert")
+
+        # Invalid explanation style
+        with self.assertRaises(ValueError):
+            update_learner_profile(str(user_id), explanation_style="telepathic")
+
+        # Invalid daily minutes (out of bounds)
+        with self.assertRaises(ValueError):
+            update_learner_profile(str(user_id), daily_study_minutes=5)
+
+        with self.assertRaises(ValueError):
+            update_learner_profile(str(user_id), daily_study_minutes=1000)
+
+        # Invalid empty preferred language
+        with self.assertRaises(ValueError):
+            update_learner_profile(str(user_id), preferred_language="")
+
+    def test_update_learner_profile_inactive_user_rejected(self):
+        from services.learner_service import update_learner_profile
+
+        user_id = uuid4()
+        connection, cursor = self.make_database_mock([None])
+
+        with patch(
+            "services.learner_service.psycopg.connect",
+            return_value=connection,
+        ), patch(
+            "services.learner_service.load_database_url",
+            return_value="postgresql://test",
+        ):
+            with self.assertRaises(PermissionError):
+                update_learner_profile(str(user_id), proficiency_level="beginner")
+
 
 if __name__ == "__main__":
     unittest.main()

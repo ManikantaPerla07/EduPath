@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from services.progress_service import fetch_learner_topic_progress
+from services.few_shot_prompting_service import format_few_shot_prompt_section
 
 
 TEACHING_STRATEGIES = {
@@ -101,6 +102,7 @@ def build_adaptive_teaching_profile(
             "topic_slug": primary_topic_slug,
             "topic_name": None,
             "mastery_status": "not_assessed",
+            "few_shot_section": format_few_shot_prompt_section(strategy["level"]),
             **strategy,
         }
 
@@ -120,6 +122,7 @@ def build_adaptive_teaching_profile(
         "topic_slug": primary_topic_slug,
         "topic_name": topic_name,
         "mastery_status": mastery_status,
+        "few_shot_section": format_few_shot_prompt_section(strategy["level"]),
         **strategy,
     }
 

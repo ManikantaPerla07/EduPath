@@ -518,17 +518,30 @@ def _render_results(result: dict) -> None:
 
     st.divider()
 
-    if st.button(
-        "Start another assessment",
-        type="primary",
-        width="stretch",
-    ):
-        st.session_state.pop("edupath_assessment_result", None)
-        st.session_state.pop("edupath_active_assessment", None)
-        st.session_state.pop("edupath_current_question", None)
+    res_col1, res_col2 = st.columns(2)
 
-        # Return to the assessment introduction.
-        st.rerun(scope="fragment")
+    with res_col1:
+        if st.button(
+            "Start another assessment",
+            type="secondary",
+            width="stretch",
+        ):
+            st.session_state.pop("edupath_assessment_result", None)
+            st.session_state.pop("edupath_active_assessment", None)
+            st.session_state.pop("edupath_current_question", None)
+
+            # Return to the assessment introduction.
+            st.rerun(scope="fragment")
+
+    with res_col2:
+        if st.button(
+            "Update Study Plan with Results",
+            type="primary",
+            width="stretch",
+        ):
+            st.session_state["edupath_navigation"] = "Study Plan"
+            st.session_state.pop("edupath_assessment_result", None)
+            st.rerun()
 
 
 @st.fragment

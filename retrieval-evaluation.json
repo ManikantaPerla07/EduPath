@@ -1,0 +1,477 @@
+{
+  "course_slug": "python-basics",
+  "top_k": 5,
+  "evaluation_cutoffs": [
+    1,
+    3,
+    5
+  ],
+  "query_count": 18,
+  "queries_with_results": 18,
+  "retrieval_coverage_percent": 100.0,
+  "hit_rate_at_k": {
+    "1": 0.9444444444444444,
+    "3": 1.0,
+    "5": 1.0
+  },
+  "precision_at_k": {
+    "1": 0.9444444444444444,
+    "3": 0.9444444444444444,
+    "5": 0.9111111111111111
+  },
+  "mean_reciprocal_rank": 0.9629629629629629,
+  "per_topic": {
+    "conditionals": {
+      "query_count": 2,
+      "queries_with_results": 2,
+      "retrieval_coverage_percent": 100.0,
+      "hit_rate_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "precision_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 0.9
+      },
+      "mean_reciprocal_rank": 1.0
+    },
+    "dictionaries-sets": {
+      "query_count": 2,
+      "queries_with_results": 2,
+      "retrieval_coverage_percent": 100.0,
+      "hit_rate_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "precision_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "mean_reciprocal_rank": 1.0
+    },
+    "functions": {
+      "query_count": 2,
+      "queries_with_results": 2,
+      "retrieval_coverage_percent": 100.0,
+      "hit_rate_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "precision_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "mean_reciprocal_rank": 1.0
+    },
+    "lists-tuples": {
+      "query_count": 2,
+      "queries_with_results": 2,
+      "retrieval_coverage_percent": 100.0,
+      "hit_rate_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "precision_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "mean_reciprocal_rank": 1.0
+    },
+    "loops": {
+      "query_count": 2,
+      "queries_with_results": 2,
+      "retrieval_coverage_percent": 100.0,
+      "hit_rate_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "precision_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 0.9
+      },
+      "mean_reciprocal_rank": 1.0
+    },
+    "operators": {
+      "query_count": 2,
+      "queries_with_results": 2,
+      "retrieval_coverage_percent": 100.0,
+      "hit_rate_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "precision_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "mean_reciprocal_rank": 1.0
+    },
+    "problem-solving": {
+      "query_count": 2,
+      "queries_with_results": 2,
+      "retrieval_coverage_percent": 100.0,
+      "hit_rate_at_k": {
+        "1": 0.5,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "precision_at_k": {
+        "1": 0.5,
+        "3": 0.6666666666666666,
+        "5": 0.6
+      },
+      "mean_reciprocal_rank": 0.6666666666666666
+    },
+    "strings": {
+      "query_count": 2,
+      "queries_with_results": 2,
+      "retrieval_coverage_percent": 100.0,
+      "hit_rate_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "precision_at_k": {
+        "1": 1.0,
+        "3": 0.8333333333333334,
+        "5": 0.8
+      },
+      "mean_reciprocal_rank": 1.0
+    },
+    "variables-data-types": {
+      "query_count": 2,
+      "queries_with_results": 2,
+      "retrieval_coverage_percent": 100.0,
+      "hit_rate_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "precision_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "mean_reciprocal_rank": 1.0
+    }
+  },
+  "cases": [
+    {
+      "id": "variables-01",
+      "expected_topic_slug": "variables-data-types",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "variables-data-types",
+        "variables-data-types",
+        "variables-data-types",
+        "variables-data-types",
+        "variables-data-types"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "variables-02",
+      "expected_topic_slug": "variables-data-types",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "variables-data-types",
+        "variables-data-types",
+        "variables-data-types",
+        "variables-data-types",
+        "variables-data-types"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "operators-01",
+      "expected_topic_slug": "operators",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "operators",
+        "operators",
+        "operators",
+        "operators",
+        "operators"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "operators-02",
+      "expected_topic_slug": "operators",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "operators",
+        "operators",
+        "operators",
+        "operators",
+        "operators"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "conditionals-01",
+      "expected_topic_slug": "conditionals",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "conditionals",
+        "conditionals",
+        "conditionals",
+        "conditionals",
+        "conditionals"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "conditionals-02",
+      "expected_topic_slug": "conditionals",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "conditionals",
+        "conditionals",
+        "conditionals",
+        "conditionals",
+        "operators"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "loops-01",
+      "expected_topic_slug": "loops",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "loops",
+        "loops",
+        "loops",
+        "strings",
+        "loops"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "loops-02",
+      "expected_topic_slug": "loops",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "loops",
+        "loops",
+        "loops",
+        "loops",
+        "loops"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "functions-01",
+      "expected_topic_slug": "functions",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "functions",
+        "functions",
+        "functions",
+        "functions",
+        "functions"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "functions-02",
+      "expected_topic_slug": "functions",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "functions",
+        "functions",
+        "functions",
+        "functions",
+        "functions"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "lists-tuples-01",
+      "expected_topic_slug": "lists-tuples",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "lists-tuples",
+        "lists-tuples",
+        "lists-tuples",
+        "lists-tuples",
+        "lists-tuples"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "lists-tuples-02",
+      "expected_topic_slug": "lists-tuples",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "lists-tuples",
+        "lists-tuples",
+        "lists-tuples",
+        "lists-tuples",
+        "lists-tuples"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "dictionaries-sets-01",
+      "expected_topic_slug": "dictionaries-sets",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "dictionaries-sets",
+        "dictionaries-sets",
+        "dictionaries-sets",
+        "dictionaries-sets",
+        "dictionaries-sets"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "dictionaries-sets-02",
+      "expected_topic_slug": "dictionaries-sets",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "dictionaries-sets",
+        "dictionaries-sets",
+        "dictionaries-sets",
+        "dictionaries-sets",
+        "dictionaries-sets"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "strings-01",
+      "expected_topic_slug": "strings",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "strings",
+        "strings",
+        "strings",
+        "strings",
+        "strings"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "strings-02",
+      "expected_topic_slug": "strings",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "strings",
+        "strings",
+        "lists-tuples",
+        "strings",
+        "lists-tuples"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "problem-solving-01",
+      "expected_topic_slug": "problem-solving",
+      "first_relevant_rank": 3,
+      "retrieved_topic_slugs": [
+        "dictionaries-sets",
+        "dictionaries-sets",
+        "problem-solving",
+        "dictionaries-sets",
+        "loops"
+      ],
+      "hit_at_k": {
+        "1": false,
+        "3": true,
+        "5": true
+      }
+    },
+    {
+      "id": "problem-solving-02",
+      "expected_topic_slug": "problem-solving",
+      "first_relevant_rank": 1,
+      "retrieved_topic_slugs": [
+        "problem-solving",
+        "problem-solving",
+        "problem-solving",
+        "problem-solving",
+        "problem-solving"
+      ],
+      "hit_at_k": {
+        "1": true,
+        "3": true,
+        "5": true
+      }
+    }
+  ]
+}
