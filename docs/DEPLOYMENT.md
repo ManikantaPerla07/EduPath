@@ -8,10 +8,10 @@
 ---
 
 ## 1. Hosting Architecture
-EduPath is deployed as a single-repository web application connected to serverless backends:
-- **Application Host:** Streamlit Community Cloud
+EduPath is designed to deploy to Streamlit Community Cloud connected to serverless backends:
+- **Application Host:** Streamlit Community Cloud (Manual deployment target)
 - **Repository:** `ManikantaPerla07/EduPath`
-- **Main Branch:** `main` (merged from `feature/unify-langchain-retrieval`)
+- **Target Branch:** `main` (currently developed in the working tree on branch `feature/unify-langchain-retrieval`; not yet merged into `main`)
 - **Entrypoint:** `app.py`
 - **Runtime:** Python 3.11.9 / 3.12 compatible
 
@@ -24,8 +24,11 @@ Configure these secrets in the Streamlit Cloud dashboard (**never commit `.strea
 # PostgreSQL Connection (Neon Serverless SSL connection string)
 DATABASE_URL = "postgresql://neondb_owner:YOUR_PASSWORD@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require"
 
-# Google Gemini API Key
+# Google Gemini API Key (Primary LLM & Vector Embeddings)
 GEMINI_API_KEY = "AIzaSy..."
+
+# Groq API Key (Secondary Failover LLM)
+GROQ_API_KEY = "gsk_..."
 
 # Streamlit Auth / Google OIDC Configuration
 [auth]
@@ -64,6 +67,38 @@ server_metadata_url = "https://accounts.google.com/.well-known/openid-configurat
 ---
 
 ## 4. Free-Tier Quota & Cost Management
-- **Gemini Free Tier:** 15 Requests Per Minute (RPM), 1,500 Requests Per Day (RPD).
-- **Graceful Quota Handling:** If `gemini-3.8-flash` hits rate limits, the system catches retryable 429 errors and routes to `gemini-3.5-flash-lite`.
+- **Gemini Multi-Dimensional Quotas:** Quotas on Google AI Studio / Gemini API are enforced across three distinct dimensions rather than a single universal limit:
+  - **Requests Per Minute (RPM):** Typically 15 RPM for standard flash models, though specific model and tier limits vary.
+  - **Tokens Per Minute (TPM):** E.g., up to 1,000,000 TPM for flash tiers.
+  - **Requests Per Day (RPD):** Typically 1,500 RPD for free-tier projects.
+  - *Recommendation:* Always check your project-specific active quotas in the **Google AI Studio / Google Cloud Console Quotas & System Limits** dashboard.
+- **Multi-Provider Failover & Availability Realism:** If `gemini-3.8-flash` encounters server timeouts (`504`), rate limits (`429`), or transient unavailability, the system attempts `gemini-3.5-flash-lite`, and automatically fails over to Groq (`openai/gpt-oss-120b` and `openai/gpt-oss-20b`). While this multi-provider redundancy substantially enhances system resilience at ₹0 operating cost, it **does not guarantee uninterrupted zero-cost availability**, as Groq free-tier endpoints are independently subject to their own rate limits (RPM, TPM, RPD) and service capacity limits. If both providers exhaust quotas concurrently, EduPath cleanly surfaces a polite rate-limiting advisory to the learner.
+- **₹0 Operating Budget:** Designed to operate on free-tier quotas requiring zero paid billing.
 - **Neon Sleep Mode:** Free Neon databases suspend after 5 minutes of inactivity. EduPath connections use `connect_timeout=20` to allow automatic compute wake-up without crashing.
+
+---
+
+## 5. Migration 007 Safe Rollback Procedure
+If migration `007_learner_profile_and_misconceptions` must ever be reversed on Neon:
+> [!NOTE]
+> Dependency verification: No views or foreign key constraints in migrations 001–007 reference `learner_misconceptions`. Therefore, `CASCADE` is strictly omitted from the table deletion.
+
+```sql
+BEGIN;
+
+-- 1. Drop performance indexes and misconceptions table (no CASCADE required)
+DROP INDEX IF EXISTS idx_learner_misconceptions_code;
+DROP INDEX IF EXISTS idx_learner_misconceptions_user_topic;
+DROP TABLE IF EXISTS learner_misconceptions;
+
+-- 2. Revert extended columns on learner_profiles
+ALTER TABLE learner_profiles DROP COLUMN IF EXISTS ai_consent_granted_at;
+ALTER TABLE learner_profiles DROP COLUMN IF EXISTS ai_consent;
+ALTER TABLE learner_profiles DROP COLUMN IF EXISTS onboarding_completed;
+
+-- 3. Delete migration record from tracking table
+DELETE FROM schema_migrations
+WHERE version = '007_learner_profile_and_misconceptions';
+
+COMMIT;
+```

@@ -20,11 +20,14 @@ from typing import Any
 
 
 # ── 1. Document Corpus ───────────────────────────────────────────────────────
+# Note on Provenance: In strict adherence to the OpenStax AI terms of use,
+# these passages are illustrative synthetic educational notes rather than
+# verbatim excerpts from OpenStax textbooks.
 
 RAW_DOCUMENTS = [
     {
         "doc_id": "doc_01",
-        "title": "OpenStax Python Notes - Variables & Types",
+        "title": "Illustrative Synthetic Notes - Variables & Types",
         "content": (
             "In Python, variables do not require explicit declaration to reserve memory. "
             "The declaration happens automatically when you assign a value to a variable. "
@@ -34,7 +37,7 @@ RAW_DOCUMENTS = [
     },
     {
         "doc_id": "doc_02",
-        "title": "OpenStax Python Notes - Loops & Iteration",
+        "title": "Illustrative Synthetic Notes - Loops & Iteration",
         "content": (
             "A for loop in Python iterates over the items of any sequence, such as a list or a string. "
             "The range(stop) function generates a sequence of numbers starting from 0 by default. "
@@ -44,7 +47,7 @@ RAW_DOCUMENTS = [
     },
     {
         "doc_id": "doc_03",
-        "title": "OpenStax Python Notes - Functions & Scope",
+        "title": "Illustrative Synthetic Notes - Functions & Scope",
         "content": (
             "Functions are defined using the def keyword followed by the function name and parentheses. "
             "Parameters are variables listed inside the parentheses in the function definition. "

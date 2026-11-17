@@ -16,8 +16,16 @@ Objectives:
    - Output Structure Adherence
 """
 
+import argparse
 import json
+from pathlib import Path
+import sys
 from typing import Any
+
+# Ensure project root is in sys.path
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 TARGET_TASK = (
@@ -150,9 +158,11 @@ def evaluate_strategies() -> dict[str, dict[str, Any]]:
     }
 
 
-def run_experiment():
+def run_experiment(live: bool = False):
+    mode_str = "LIVE GEMINI API COMPARISON" if live else "DETERMINISTIC BENCHMARK (OFFLINE)"
     print("=" * 75)
     print("EXPERIMENT 02: PROMPT ENGINEERING & PEDAGOGICAL COMPARISON")
+    print(f"Execution Mode: {mode_str}")
     print("=" * 75)
     print(f"Target Educational Task:\n{TARGET_TASK}\n")
 
@@ -164,8 +174,21 @@ def run_experiment():
         print("-" * 75)
         print("Prompt Template:")
         print(prompt[:250] + ("..." if len(prompt) > 250 else ""))
-        print("\nModel Output:")
-        print(REPRESENTATIVE_OUTPUTS[strategy])
+
+        if live:
+            try:
+                from services.answer_generation_service import _generate_with_langchain_fallback
+                print("\n[Calling Live Gemini Model...]")
+                out_text, model_name = _generate_with_langchain_fallback(prompt)
+                print(f"Live Output ({model_name}):")
+                print(out_text[:600] + ("..." if len(out_text) > 600 else ""))
+            except Exception as exc:
+                print(f"⚠️ Live generation failed ({exc}); displaying representative offline output:")
+                print(REPRESENTATIVE_OUTPUTS[strategy])
+        else:
+            print("\nRepresentative Output:")
+            print(REPRESENTATIVE_OUTPUTS[strategy])
+
         print("\nEvaluator Metrics:")
         metrics = evaluations[strategy]
         print(f"  Clarity:               {metrics['clarity']}/5.0")
@@ -182,8 +205,13 @@ def run_experiment():
     for strat, m in evaluations.items():
         print(f"{strat:<18} | {m['clarity']:<8.1f} | {m['misconception_depth']:<14.1f} | {m['structure_compliance']:<10.1f} | {m['scaffolding_and_practice']:.1f}")
     print("=" * 75)
+    if not live:
+        print("💡 TIP: Run with --live to generate live Gemini comparison outputs.")
     print("✅ Experiment 02 completed successfully.")
 
 
 if __name__ == "__main__":
-    run_experiment()
+    parser = argparse.ArgumentParser(description="Run Experiment 02: Prompt Engineering Comparison")
+    parser.add_argument("--live", action="store_true", help="Generate live Gemini model outputs for comparison")
+    args = parser.parse_args()
+    run_experiment(live=args.live)

@@ -382,6 +382,111 @@ class LearnerServiceTests(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 update_learner_profile(str(user_id), proficiency_level="beginner")
 
+    def test_set_ai_consent_validates_inputs(self):
+        from services.learner_service import set_ai_consent
+
+        with self.assertRaises(ValueError):
+            set_ai_consent("not-a-uuid", True)
+        with self.assertRaises(ValueError):
+            set_ai_consent(str(uuid4()), "not-a-bool")  # type: ignore
+
+    def test_complete_onboarding_validates_inputs(self):
+        from services.learner_service import complete_onboarding
+
+        with self.assertRaises(ValueError):
+            complete_onboarding("not-a-uuid")
+
+    def test_delete_learner_account_validates_uuid(self):
+        from services.learner_service import delete_learner_account
+
+        with self.assertRaises(ValueError):
+            delete_learner_account("invalid-uuid")
+
+    def test_delete_learner_account_success_with_checkpoint_cleanup(self):
+        from services.learner_service import delete_learner_account
+
+        user_id = uuid4()
+        thread_id_1 = str(uuid4())
+        thread_id_2 = str(uuid4())
+
+        connection = MagicMock()
+        cursor = MagicMock()
+        connection.__enter__.return_value = connection
+        connection.cursor.return_value.__enter__.return_value = cursor
+
+        # Cursor fetch sequence:
+        # 1. user exists: (user_id, True)
+        # 2. chat_sessions thread_ids: [(thread_id_1,), (thread_id_2,)]
+        # 3. information_schema check for learner_misconceptions: (True,)
+        # 4. delete users returning user_id: (user_id,)
+        cursor.fetchone.side_effect = [
+            (user_id, True),   # SELECT user_id, is_active
+            (True,),           # EXISTS learner_misconceptions table
+            (user_id,),        # DELETE FROM users RETURNING user_id
+        ]
+        cursor.fetchall.side_effect = [
+            [(thread_id_1,), (thread_id_2,)],  # SELECT thread_id FROM chat_sessions
+        ]
+
+        with patch(
+            "services.learner_service.psycopg.connect",
+            return_value=connection,
+        ), patch(
+            "services.learner_service.load_database_url",
+            return_value="postgresql://test",
+        ), patch(
+            "services.langgraph_checkpoint_service.delete_langgraph_thread_checkpoints"
+        ) as mock_delete_checkpoints:
+            result = delete_learner_account(str(user_id))
+            self.assertTrue(result)
+            self.assertEqual(mock_delete_checkpoints.call_count, 2)
+            mock_delete_checkpoints.assert_any_call(thread_id=thread_id_1, database_url="postgresql://test")
+            mock_delete_checkpoints.assert_any_call(thread_id=thread_id_2, database_url="postgresql://test")
+
+    def test_delete_learner_account_aborts_if_checkpoint_cleanup_fails(self):
+        from services.learner_service import delete_learner_account
+
+        user_id = uuid4()
+        thread_id = str(uuid4())
+
+        connection = MagicMock()
+        cursor = MagicMock()
+        connection.__enter__.return_value = connection
+        connection.cursor.return_value.__enter__.return_value = cursor
+
+        cursor.fetchone.side_effect = [(user_id, True)]
+        cursor.fetchall.side_effect = [[(thread_id,)]]
+
+        with patch(
+            "services.learner_service.psycopg.connect",
+            return_value=connection,
+        ), patch(
+            "services.learner_service.load_database_url",
+            return_value="postgresql://test",
+        ), patch(
+            "services.langgraph_checkpoint_service.delete_langgraph_thread_checkpoints",
+            side_effect=RuntimeError("Checkpoint DB connection lost"),
+        ):
+            with self.assertRaises(RuntimeError) as ctx:
+                delete_learner_account(str(user_id))
+            self.assertIn("Failed to delete LangGraph checkpoints", str(ctx.exception))
+
+    def test_new_account_defaults_to_unconfirmed_adult_and_no_ai_consent(self):
+        """Regression test: new accounts must NOT have adult_confirmation or ai_consent by default."""
+        from services.learner_service import get_or_create_learner, get_learner_profile
+
+        user_id = uuid4()
+        user_row = (user_id, "student", True, "new@gmail.com", True, "New User")
+        profile_row = (False, "beginner", "English", "step_by_step", 45)
+
+        connection, cursor = self.make_database_mock([user_row, (user_id,), profile_row])
+        with patch("services.learner_service.psycopg.connect", return_value=connection), patch(
+            "services.learner_service.load_database_url", return_value="postgresql://test"
+        ):
+            learner = get_or_create_learner(self.claims)
+            self.assertFalse(learner["adult_confirmation"])
+            self.assertEqual(learner["proficiency_level"], "beginner")
+
 
 if __name__ == "__main__":
     unittest.main()

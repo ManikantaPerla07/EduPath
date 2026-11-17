@@ -14,6 +14,8 @@ from ui.assessment import render_assessment
 from ui.study_plan import render_study_plan
 from ui.tutor import render_tutor
 from ui.learner_profile import render_learner_profile
+from ui.learning_analytics import render_learning_analytics
+from ui.learning_resources import render_learning_resources
 from ui.knowledge_management import render_knowledge_management
 from ui.tutor_feedback import render_tutor_feedback
 from ui.agent_telemetry import render_agent_telemetry
@@ -441,6 +443,14 @@ def render_workspace_content(
         render_study_plan(learner)
         return
 
+    if selected_page == "Learning Analytics":
+        render_learning_analytics(learner)
+        return
+
+    if selected_page == "Learning Resources":
+        render_learning_resources(learner)
+        return
+
     if selected_page == "Knowledge Management":
         if learner.get("role") != "admin":
             st.error("An active administrator account is required.")
@@ -572,6 +582,8 @@ def home_screen(learner):
         "AI Tutor",
         "Python Assessment",
         "Study Plan",
+        "Learning Analytics",
+        "Learning Resources",
     ]
 
     if learner.get("role") == "admin":
@@ -628,6 +640,11 @@ def home_screen(learner):
     navigation_changed = previous_page != selected_page
     st.session_state["edupath_last_navigation"] = selected_page
 
+    if navigation_changed:
+        user_id = learner.get("user_id")
+        if user_id:
+            st.session_state.pop(f"edupath_ai_consent_synced_db_{user_id}", None)
+
     # All workspace pages share one placeholder. Clear it before rendering so
     # slow database calls cannot leave the previous page visible underneath.
     page_container = st.empty()
@@ -652,34 +669,35 @@ def home_screen(learner):
 # Main application flow
 # ---------------------------------------------------------
 
-if not st.user.is_logged_in:
-    login_screen()
-    st.stop()
-
-learner = load_authenticated_learner()
-
-if not learner["adult_confirmation"]:
-    adult_confirmation_screen(learner)
-    st.stop()
-
-if learner.get("role") != "admin":
-    try:
-        course_available = is_course_published("python-basics")
-    except Exception:
-        st.error(
-            "We could not verify course availability. Please try again later."
-        )
-        render_sidebar_signout()
+if st.runtime.exists():
+    if not getattr(st.user, "is_logged_in", False):
+        login_screen()
         st.stop()
 
-    if not course_available:
-        st.title("🎓 EduPath")
-        st.info(
-            "Python Programming is currently being prepared by the "
-            "EduPath team. Learner access will be available after the "
-            "course and its approved learning resources are published."
-        )
-        render_sidebar_signout()
+    learner = load_authenticated_learner()
+
+    if not learner["adult_confirmation"]:
+        adult_confirmation_screen(learner)
         st.stop()
 
-home_screen(learner)
+    if learner.get("role") != "admin":
+        try:
+            course_available = is_course_published("python-basics")
+        except Exception:
+            st.error(
+                "We could not verify course availability. Please try again later."
+            )
+            render_sidebar_signout()
+            st.stop()
+
+        if not course_available:
+            st.title("🎓 EduPath")
+            st.info(
+                "Python Programming is currently being prepared by the "
+                "EduPath team. Learner access will be available after the "
+                "course and its approved learning resources are published."
+            )
+            render_sidebar_signout()
+            st.stop()
+
+    home_screen(learner)

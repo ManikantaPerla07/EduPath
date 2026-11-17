@@ -65,6 +65,33 @@ class NeonPgVectorRetrieverTests(unittest.TestCase):
             "Python variables are created when a value is assigned.",
         )
 
+    @patch("services.langchain_retriever.search_knowledge_base_lexical")
+    @patch("services.langchain_retriever.search_knowledge_base")
+    def test_retriever_falls_back_to_lexical_on_semantic_failure(
+        self, mock_search, mock_lexical
+    ):
+        mock_search.side_effect = RuntimeError("Embedding service down")
+        mock_lexical.return_value = [make_chunk()]
+
+        retriever = NeonPgVectorRetriever(
+            course_slug="python-basics",
+            topic_slug="variables-data-types",
+            limit=3,
+        )
+
+        documents = retriever.invoke("How are Python variables created?")
+        mock_lexical.assert_called_once_with(
+            query="How are Python variables created?",
+            course_slug="python-basics",
+            topic_slug="variables-data-types",
+            limit=3,
+        )
+        self.assertEqual(len(documents), 1)
+        self.assertEqual(
+            documents[0].page_content,
+            "Python variables are created when a value is assigned.",
+        )
+
         self.assertEqual(
             documents[0].metadata["chunk_id"],
             "chunk-001",

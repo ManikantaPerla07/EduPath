@@ -29,8 +29,9 @@ class FewShotAdaptationDemoTests(unittest.TestCase):
             self.assertTrue(len(lvl_data["answer"]) > 50)
             self.assertTrue(isinstance(lvl_data["misconception"], str))
 
+    @patch("demonstrations.few_shot_adaptation_demo._retrieve_sources_for_live_demo", return_value=REFERENCE_EDUCATIONAL_CHUNKS)
     @patch("services.answer_generation_service.generate_grounded_answer")
-    def test_live_demonstration_calls_generation_service(self, mock_generate):
+    def test_live_demonstration_calls_generation_service(self, mock_generate, mock_retrieve):
         """Live demonstration must invoke generate_grounded_answer for each level."""
         mock_generate.return_value = {
             "answer": "A for loop repeats actions [S1].",
@@ -50,8 +51,9 @@ class FewShotAdaptationDemoTests(unittest.TestCase):
             self.assertEqual(lvl_data["answer"], "A for loop repeats actions [S1].")
             self.assertEqual(len(lvl_data["citations"]), 1)
 
+    @patch("demonstrations.few_shot_adaptation_demo._retrieve_sources_for_live_demo", return_value=REFERENCE_EDUCATIONAL_CHUNKS)
     @patch("services.answer_generation_service.generate_grounded_answer")
-    def test_live_demonstration_falls_back_gracefully_on_error(self, mock_generate):
+    def test_live_demonstration_falls_back_gracefully_on_error(self, mock_generate, mock_retrieve):
         """When live API fails, it must fall back to curated exemplars without crashing."""
         mock_generate.side_effect = RuntimeError("Quota exhausted or network down")
 
@@ -64,14 +66,19 @@ class FewShotAdaptationDemoTests(unittest.TestCase):
             self.assertEqual(lvl_data["source"], "curated_exemplar")
             self.assertTrue(len(lvl_data["answer"]) > 50)
 
-    @patch("services.retrieval_service.search_knowledge_base")
-    def test_retrieve_sources_uses_reference_chunks_on_database_error(self, mock_search):
-        """If search_knowledge_base fails, it returns the verified reference chunks."""
-        mock_search.side_effect = Exception("DB connection refused")
-
-        chunks = _retrieve_sources_for_demo(TARGET_QUESTION)
+    def test_retrieve_sources_returns_reference_chunks_in_offline_mode(self):
+        """In offline mode, _retrieve_sources_for_demo returns the verified reference chunks."""
+        chunks = _retrieve_sources_for_demo(TARGET_QUESTION, live=False)
         self.assertEqual(chunks, REFERENCE_EDUCATIONAL_CHUNKS)
         self.assertTrue(len(chunks) >= 2)
+
+    @patch("services.retrieval_service.search_knowledge_base")
+    def test_retrieve_sources_live_fails_with_clear_diagnostic_on_db_error(self, mock_search):
+        """In live mode, database failure raises RuntimeError instead of silent synthetic fallback."""
+        mock_search.side_effect = Exception("DB connection refused")
+        with self.assertRaises(RuntimeError) as ctx:
+            _retrieve_sources_for_demo(TARGET_QUESTION, live=True)
+        self.assertIn("synthetic data replacement is prohibited", str(ctx.exception))
 
 
 if __name__ == "__main__":

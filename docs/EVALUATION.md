@@ -14,11 +14,13 @@ EduPath employs a four-tiered evaluation framework to distinguish between code c
 - **Test Framework:** Pytest 8.x
 - **Execution Date:** November 14, 2026
 - **Command:** `python -m pytest -q`
-- **Result:** **562 passed, 77 subtests passed** (0 failures).
+- **Result:** **615 passed, 77 subtests passed** (0 failures).
 - **Failures / Errors:** 0.
 
 ### Test Coverage Highlights:
-- `test_learner_service.py`: Google identity claim validation, profile retrieval, profile updates.
+- `test_learner_service.py`: Google identity claim validation, profile retrieval, profile updates, account deletion.
+- `test_migration_007_and_consent.py`: Migration 007 DDL schema, Pre/Post-migration conditions, Gemini consent zero-call enforcement, LangGraph multi-thread deletion.
+- `test_misconception_service.py`: Stable misconception catalogue, rule-based diagnostic engine, learner-scoped persistence.
 - `test_assessment_submission_service.py`: Server-side grading, answer key protection, transactional writes.
 - `test_progress_service.py`: Topic progress aggregation, evidence damping factor, mastery thresholds.
 - `test_study_plan_service.py`: Topological sorting, prerequisite preservation, study schedule generation.

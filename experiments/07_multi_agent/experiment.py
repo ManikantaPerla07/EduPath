@@ -143,6 +143,8 @@ class CoordinatorAgent:
 def run_experiment():
     print("=" * 75)
     print("EXPERIMENT 07: TWO-AGENT COLLABORATION (PLANNER & REVIEWER)")
+    print("Architecture: Deterministic Typed Message-Passing Protocol Simulation")
+    print("Academic Distinction: Simulates agent coordination roles without unconstrained LLM calls")
     print("=" * 75)
 
     coordinator = CoordinatorAgent()

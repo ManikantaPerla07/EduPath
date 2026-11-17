@@ -364,18 +364,64 @@ def get_learner_profile(user_id: str) -> dict[str, Any]:
             if row is None:
                 raise ValueError("Learner account or profile not found.")
 
+            # Safely read migration 007 extension columns if they exist
+            cursor.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'learner_profiles'
+                  AND column_name IN ('ai_consent', 'ai_consent_granted_at', 'onboarding_completed');
+                """
+            )
+            found_cols = {r[0] for r in cursor.fetchall()}
+
+            ai_consent_val = False
+            ai_consent_granted_at_val = None
+            onboarding_completed_val = False
+
+            if found_cols:
+                cols_to_select = []
+                if "ai_consent" in found_cols:
+                    cols_to_select.append("ai_consent")
+                if "ai_consent_granted_at" in found_cols:
+                    cols_to_select.append("ai_consent_granted_at")
+                if "onboarding_completed" in found_cols:
+                    cols_to_select.append("onboarding_completed")
+
+                if cols_to_select:
+                    cursor.execute(
+                        f"""
+                        SELECT {", ".join(cols_to_select)}
+                        FROM learner_profiles
+                        WHERE user_id = %s;
+                        """,
+                        (learner_id,),
+                    )
+                    ext_row = cursor.fetchone()
+                    if ext_row:
+                        for idx, col in enumerate(cols_to_select):
+                            if col == "ai_consent":
+                                ai_consent_val = bool(ext_row[idx])
+                            elif col == "ai_consent_granted_at":
+                                ai_consent_granted_at_val = ext_row[idx]
+                            elif col == "onboarding_completed":
+                                onboarding_completed_val = bool(ext_row[idx])
+
             return {
                 "user_id": str(row[0]),
                 "email": row[1],
                 "display_name": row[2],
                 "role": row[3],
                 "is_active": row[4],
-                "adult_confirmation": row[5],
+                "adult_confirmation": bool(row[5]),
                 "proficiency_level": row[6],
                 "preferred_language": row[7],
                 "explanation_style": row[8],
                 "daily_study_minutes": row[9],
                 "learning_goal": row[10],
+                "ai_consent": ai_consent_val,
+                "ai_consent_granted_at": ai_consent_granted_at_val,
+                "onboarding_completed": onboarding_completed_val,
             }
 
 
@@ -500,3 +546,191 @@ def update_learner_profile(
                 "learning_goal": row[5],
                 "adult_confirmation": row[6],
             }
+
+
+def set_ai_consent(user_id: str, consent: bool) -> None:
+    """Save explicit generative AI processing consent for an authenticated learner.
+
+    Enforces server-side UUID verification and transactional persistence.
+    Updates ai_consent_granted_at timestamp when consent is granted.
+    """
+    try:
+        learner_id = UUID(str(user_id))
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError("A valid learner user ID is required.")
+
+    if not isinstance(consent, bool):
+        raise ValueError("Consent must be a boolean.")
+
+    with psycopg.connect(load_database_url(), connect_timeout=20) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'learner_profiles'
+                  AND column_name IN ('ai_consent', 'ai_consent_granted_at');
+                """
+            )
+            cols = {r[0] for r in cursor.fetchall()}
+            if "ai_consent" in cols:
+                if "ai_consent_granted_at" in cols:
+                    cursor.execute(
+                        """
+                        UPDATE learner_profiles
+                        SET ai_consent = %s,
+                            ai_consent_granted_at = CASE WHEN %s THEN NOW() ELSE NULL END,
+                            updated_at = NOW()
+                        WHERE user_id = %s;
+                        """,
+                        (consent, consent, learner_id),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        UPDATE learner_profiles
+                        SET ai_consent = %s,
+                            updated_at = NOW()
+                        WHERE user_id = %s;
+                        """,
+                        (consent, learner_id),
+                    )
+                if cursor.rowcount == 0:
+                    raise ValueError("Learner profile not found.")
+
+
+def complete_onboarding(user_id: str) -> None:
+    """Explicitly mark learner onboarding as complete."""
+    try:
+        learner_id = UUID(str(user_id))
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError("A valid learner user ID is required.")
+
+    with psycopg.connect(load_database_url(), connect_timeout=20) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'learner_profiles' AND column_name = 'onboarding_completed'
+                );
+                """
+            )
+            if cursor.fetchone()[0]:
+                cursor.execute(
+                    """
+                    UPDATE learner_profiles
+                    SET onboarding_completed = TRUE,
+                        updated_at = NOW()
+                    WHERE user_id = %s;
+                    """,
+                    (learner_id,),
+                )
+
+
+def delete_learner_account(user_id: str) -> bool:
+    """Permanently delete an authenticated learner account and all cascaded data.
+
+    Enforces server-side UUID validation.
+    Deletion sequence:
+    1. Authenticate / verify the target learner exists and is locked for deletion.
+    2. Determine all owned chat session thread_ids for this learner.
+    3. Delete all associated LangGraph thread checkpoints and pending writes
+       via delete_langgraph_thread_checkpoints.
+       If checkpoint cleanup fails, the deletion aborts to prevent leaving orphaned state.
+    4. Explicitly clean up user telemetry and model usage events.
+    5. Delete the learner's row in users, which cascades via foreign keys to:
+       - learner_profiles
+       - learner_topic_progress
+       - assessment_sessions & assessment_responses
+       - study_plans & study_plan_items
+       - chat_sessions, chat_messages & chat_message_feedback
+       - learner_misconceptions
+       - agent_runs
+    6. Return True only if user deletion was successfully committed.
+    """
+    try:
+        learner_id = UUID(str(user_id))
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError("A valid learner user ID is required.")
+
+    database_url = load_database_url()
+
+    with psycopg.connect(database_url, connect_timeout=20) as connection:
+        with connection.cursor() as cursor:
+            # 1. Lock and verify the user exists
+            cursor.execute(
+                """
+                SELECT user_id, is_active
+                FROM users
+                WHERE user_id = %s
+                FOR UPDATE;
+                """,
+                (learner_id,),
+            )
+            user_row = cursor.fetchone()
+            if user_row is None:
+                return False
+
+            # 2. Find all owned chat session thread IDs
+            cursor.execute(
+                """
+                SELECT thread_id
+                FROM chat_sessions
+                WHERE user_id = %s;
+                """,
+                (learner_id,),
+            )
+            thread_rows = cursor.fetchall()
+            thread_ids = [str(r[0]) for r in thread_rows if r[0] is not None]
+
+            # 3. Clean up LangGraph checkpoints for each thread
+            from services.langgraph_checkpoint_service import delete_langgraph_thread_checkpoints
+            for tid in thread_ids:
+                try:
+                    delete_langgraph_thread_checkpoints(
+                        thread_id=tid,
+                        database_url=database_url,
+                    )
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"Failed to delete LangGraph checkpoints for thread {tid}: {exc}"
+                    ) from exc
+
+            # 4. Explicitly clean up model_usage_events (which has ON DELETE SET NULL)
+            cursor.execute(
+                """
+                DELETE FROM model_usage_events
+                WHERE user_id = %s;
+                """,
+                (learner_id,),
+            )
+
+            # 5. Clean up learner_misconceptions if the table exists
+            cursor.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_name = 'learner_misconceptions'
+                );
+                """
+            )
+            if cursor.fetchone()[0]:
+                cursor.execute(
+                    """
+                    DELETE FROM learner_misconceptions
+                    WHERE user_id = %s;
+                    """,
+                    (learner_id,),
+                )
+
+            # 6. Delete user row in users, which triggers ON DELETE CASCADE for all other relations
+            cursor.execute(
+                """
+                DELETE FROM users
+                WHERE user_id = %s
+                RETURNING user_id;
+                """,
+                (learner_id,),
+            )
+            return cursor.fetchone() is not None

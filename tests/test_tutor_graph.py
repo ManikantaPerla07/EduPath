@@ -6,13 +6,29 @@ from unittest.mock import MagicMock, call, patch
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 
-from agents.tutor_graph import build_tutor_graph, run_tutor_graph
+from agents.tutor_graph import build_tutor_graph, run_tutor_graph as _base_run_tutor_graph
 from services.answer_generation_service import (
     AnswerGenerationError,
     FALLBACK_GENERATION_MODEL,
     GENERATION_MODEL,
 )
 from services.agent_telemetry_service import AgentRunAlreadyActiveError
+
+
+def run_tutor_graph(*args, **kwargs):
+    """Test helper defaulting user_id and authoritative database profile for workflow tests."""
+    user_id_passed = "user_id" in kwargs
+    if not user_id_passed and "session_id" not in kwargs:
+        kwargs["user_id"] = "ea181992-f802-4528-ae24-10b7e198d8a2"
+
+    with patch(
+        "services.learner_service.get_learner_profile",
+        return_value={"ai_consent": True, "adult_confirmation": True, "proficiency_level": "beginner"},
+    ):
+        if not user_id_passed and "session_id" not in kwargs:
+            with patch("agents.tutor_graph.get_learner_teaching_profile", return_value=None):
+                return _base_run_tutor_graph(*args, **kwargs)
+        return _base_run_tutor_graph(*args, **kwargs)
 
 
 class TestTutorGraph(unittest.TestCase):

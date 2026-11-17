@@ -1,12 +1,18 @@
 """LangChain retriever adapter for EduPath's Neon pgvector database."""
 
+import logging
 from typing import Any
 
 from langchain_core.callbacks.manager import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 
-from services.retrieval_service import search_knowledge_base
+from services.retrieval_service import (
+    search_knowledge_base,
+    search_knowledge_base_lexical,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class NeonPgVectorRetriever(BaseRetriever):
@@ -25,13 +31,26 @@ class NeonPgVectorRetriever(BaseRetriever):
     ) -> list[Document]:
         """Retrieve relevant course chunks and return LangChain Documents."""
 
-        retrieved_chunks = search_knowledge_base(
-            query=query,
-            course_slug=self.course_slug,
-            topic_slug=self.topic_slug,
-            limit=self.limit,
-            client=self.client,
-        )
+        try:
+            retrieved_chunks = search_knowledge_base(
+                query=query,
+                course_slug=self.course_slug,
+                topic_slug=self.topic_slug,
+                limit=self.limit,
+                client=self.client,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Semantic retrieval failed (%s: %s); falling back to lexical search.",
+                type(exc).__name__,
+                exc,
+            )
+            retrieved_chunks = search_knowledge_base_lexical(
+                query=query,
+                course_slug=self.course_slug,
+                topic_slug=self.topic_slug,
+                limit=self.limit,
+            )
 
         documents = []
 

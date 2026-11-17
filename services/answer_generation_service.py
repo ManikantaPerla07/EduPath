@@ -157,6 +157,8 @@ def _prepare_sources(
             "page_number": chunk.get("page_number"),
             "chunk_index": chunk.get("chunk_index"),
             "similarity": chunk.get("similarity"),
+            "lexical_rank": chunk.get("lexical_rank"),
+            "retrieval_mode": chunk.get("retrieval_mode", "vector"),
         }
 
     return prompt_sources, citation_lookup
@@ -166,6 +168,7 @@ def _abstention_result(
     retrieved_count: int,
     reason: str,
     model: str = GENERATION_MODEL,
+    provider: str = "gemini",
 ) -> dict[str, Any]:
     """Return a safe response when there is insufficient evidence."""
 
@@ -175,6 +178,7 @@ def _abstention_result(
         "citations": [],
         "retrieved_count": retrieved_count,
         "model": model,
+        "provider": provider,
         "reason": reason,
     }
 
@@ -314,12 +318,21 @@ def _generate_with_fallback(
 
 def _generate_with_langchain_fallback(
     prompt: str,
-) -> tuple[str, str]:
+) -> Any:
     """
-    Generate a grounded response through LangChain and Gemini.
-
-    Retry with the fallback model only for temporary server or transport failures.
+    Generate a grounded response through LangChain, prioritizing Gemini,
+    with automatic failover to Groq on retryable server or transport failures.
     """
+    from services.llm_provider_service import (
+        GenerationResult,
+        PROVIDER_GEMINI,
+        PROVIDER_GROQ,
+        GROQ_PRIMARY_MODEL,
+        GROQ_FALLBACK_MODEL,
+        create_chat_model,
+        load_groq_api_key,
+        is_retryable_llm_error,
+    )
 
     models_to_try = (
         GENERATION_MODEL,
@@ -332,6 +345,8 @@ def _generate_with_langchain_fallback(
             ("human", "{prompt}"),
         ]
     )
+
+    gemini_errors = []
 
     for index, model_name in enumerate(models_to_try):
         try:
@@ -347,24 +362,54 @@ def _generate_with_langchain_fallback(
 
             answer = chain.invoke({"prompt": prompt})
 
-            return answer, model_name
-
-        except Exception as exc:
-            can_use_fallback = (
-                index == 0
-                and is_retryable_gemini_error(exc)
+            return GenerationResult(
+                answer=answer,
+                model_name=model_name,
+                provider=PROVIDER_GEMINI,
             )
 
-            if can_use_fallback:
+        except Exception as exc:
+            can_use_fallback = is_retryable_llm_error(exc)
+            gemini_errors.append(exc)
+
+            if not can_use_fallback:
+                raise AnswerGenerationError(
+                    f"LangChain Gemini generation failed using {model_name}."
+                ) from exc
+
+            continue
+
+    # Failover to Groq if Gemini attempts failed with retryable errors
+    groq_key = load_groq_api_key()
+    if groq_key:
+        groq_models = (GROQ_PRIMARY_MODEL, GROQ_FALLBACK_MODEL)
+        for model_name in groq_models:
+            try:
+                groq_model = create_chat_model(
+                    provider=PROVIDER_GROQ,
+                    model_name=model_name,
+                    temperature=0.2,
+                    max_output_tokens=MAX_OUTPUT_TOKENS,
+                )
+                chain = prompt_template | groq_model | StrOutputParser()
+                answer = chain.invoke({"prompt": prompt})
+
+                return GenerationResult(
+                    answer=answer,
+                    model_name=model_name,
+                    provider=PROVIDER_GROQ,
+                )
+            except Exception as exc:
+                if not is_retryable_llm_error(exc):
+                    raise AnswerGenerationError(
+                        f"Groq failover generation failed using {model_name}."
+                    ) from exc
                 continue
 
-            raise AnswerGenerationError(
-                f"LangChain Gemini generation failed using {model_name}."
-            ) from exc
-
+    last_exc = gemini_errors[-1] if gemini_errors else None
     raise AnswerGenerationError(
-        "LangChain Gemini generation failed using all available models."
-    )
+        "LangChain LLM generation failed using all available models (Gemini and Groq)."
+    ) from last_exc
 
 def generate_grounded_answer(
     question: str,
@@ -406,10 +451,12 @@ def generate_grounded_answer(
     )
 
     try:
+        raw_result = None
         if client is None:
-            answer, model_used = _generate_with_langchain_fallback(
+            raw_result = _generate_with_langchain_fallback(
                 prompt=prompt,
             )
+            answer, model_used = raw_result
         else:
             response, model_used = _generate_with_fallback(
                 client=client,
@@ -427,10 +474,18 @@ def generate_grounded_answer(
 
     if not isinstance(answer, str) or not answer.strip():
         raise AnswerGenerationError(
-            "Gemini returned an empty or unusable response."
+            "LLM returned an empty or unusable response."
         )
 
     answer = answer.strip()
+
+    # Normalize unicode/full-width brackets (e.g. 【S1】) commonly generated by open-weights models to standard [S1]
+    answer = re.sub(r"[【\[]S(\d+)[】\]]", r"[S\1]", answer)
+
+    provider_used = (
+        getattr(raw_result, "provider", None)
+        or ("gemini" if "gemini" in str(model_used) else "groq")
+    )
 
     # Respect the model's explicit insufficient-evidence response.
     if answer == "INSUFFICIENT_EVIDENCE":
@@ -438,6 +493,7 @@ def generate_grounded_answer(
             retrieved_count=len(prompt_sources),
             reason="model_found_insufficient_evidence",
             model=model_used,
+            provider=provider_used,
         )
 
     # Extract citations such as [S1], [S2].
@@ -460,6 +516,7 @@ def generate_grounded_answer(
             retrieved_count=len(prompt_sources),
             reason="answer_missing_citations",
             model=model_used,
+            provider=provider_used,
         )
 
     # Reject references that were never supplied to Gemini.
@@ -474,6 +531,7 @@ def generate_grounded_answer(
             retrieved_count=len(prompt_sources),
             reason="answer_contains_unknown_citations",
             model=model_used,
+            provider=provider_used,
         )
 
     # Attach citation details from our own trusted metadata.
@@ -488,6 +546,7 @@ def generate_grounded_answer(
         "citations": citations,
         "retrieved_count": len(prompt_sources),
         "model": model_used,
+        "provider": provider_used,
         "reason": None,
     }
 

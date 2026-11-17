@@ -90,7 +90,7 @@ EduPath/
 ├── rag/                    # Retrieval-related modules
 ├── sample_documents/       # Topic-aligned Python learning resources and upload guide
 ├── services/               # Application and domain services
-├── tests/                  # Automated tests (569 tests, 77 subtests)
+├── tests/                  # Automated tests (615 tests, 77 subtests)
 ├── ui/                     # Streamlit learner and administrator interfaces
 ├── .streamlit/
 │   ├── config.toml
@@ -244,7 +244,7 @@ python -m compileall -q agents services ui tests evaluation
 git diff --check
 ```
 
-The verified full-suite test baseline is **569 passed, 77 subtests passed** (0 failures) on November 14, 2026. Compileall across all modules completes with 0 errors, and git diff has 0 whitespace warnings.
+The verified full-suite test baseline is **615 passed, 77 subtests passed** (0 failures) on November 14, 2026. Compileall across all modules completes with 0 errors, and git diff has 0 whitespace warnings.
 
 ## Evaluate RAG retrieval
 

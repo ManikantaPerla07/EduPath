@@ -91,6 +91,8 @@ def calculate_parameter_savings(d_model: int, n_layers: int, rank: int):
 def run_experiment():
     print("=" * 75)
     print("EXPERIMENT 04: PARAMETER-EFFICIENT FINE-TUNING (LoRA)")
+    print("Architecture: NumPy Layer-Level LoRA Simulation (CPU-based forward/backward pass)")
+    print("Academic Distinction: Simulates W' = W_0 + (alpha/r)*BA; distinct from full Hugging Face PEFT on GPU")
     print("=" * 75)
 
     # 1. Theoretical Parameter Efficiency Analysis

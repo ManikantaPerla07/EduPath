@@ -173,7 +173,7 @@ CORPUS = [
 def run_experiment():
     print("=" * 70)
     print("EXPERIMENT 06: FAISS SIMILARITY SEARCH DEMO")
-    print(f"Backend Engine: {'Native FAISS C++ (faiss-cpu)' if HAS_NATIVE_FAISS else 'Simulated NumPy Engine (Zero Heavy Dependencies)'}")
+    print(f"Backend Engine: {'Native FAISS C++ (faiss-cpu)' if HAS_NATIVE_FAISS else 'NumPy Vector-Search Fallback Simulation (native faiss-cpu not installed on Windows host; exact mathematical equivalent L2 and Cosine search)'}")
     print("=" * 70)
     print(f"Corpus size: {len(CORPUS)} educational sentences\n")
 

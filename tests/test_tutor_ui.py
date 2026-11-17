@@ -182,8 +182,9 @@ class TutorSubjectivePracticeUITests(unittest.TestCase):
         col2.metric.assert_called_once()
         col3.metric.assert_called_once()
         col4.metric.assert_called_once()
-        mock_caption.assert_called_once()
-        self.assertIn("does not alter your official mastery", mock_caption.call_args.args[0])
+        self.assertGreaterEqual(mock_caption.call_count, 1)
+        caption_texts = [call.args[0] for call in mock_caption.call_args_list if call.args]
+        self.assertTrue(any("does not alter your official mastery" in t for t in caption_texts))
 
 
 if __name__ == "__main__":

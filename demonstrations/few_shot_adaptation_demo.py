@@ -78,34 +78,63 @@ LEVEL_INSTRUCTIONS = {
 }
 
 
-def _retrieve_sources_for_demo(query: str) -> list[dict[str, Any]]:
-    """Attempt live database retrieval if available, otherwise return verified reference chunks."""
+def _retrieve_sources_for_demo(query: str, live: bool = False) -> list[dict[str, Any]]:
+    """Retrieve verified curriculum chunks for demonstration.
+
+    In live mode: Queries Neon PostgreSQL pgvector. Per Phase B4 requirements,
+    if database retrieval fails or returns 0 chunks, raises RuntimeError with clear diagnostic.
+    In offline mode: Returns version-controlled reference educational chunks.
+    """
+    if not live:
+        return REFERENCE_EDUCATIONAL_CHUNKS
+
+    from services.retrieval_service import search_knowledge_base
+
     try:
-        from services.retrieval_service import search_knowledge_base
         chunks = search_knowledge_base(
             query=query,
             course_slug="python-basics",
             topic_slug="loops",
             limit=3,
         )
+        if not chunks:
+            chunks = search_knowledge_base(
+                query=query,
+                course_slug="python-basics",
+                limit=3,
+            )
         if chunks:
             return chunks
+        raise RuntimeError(
+            "Live retrieval returned 0 chunks from Neon PostgreSQL. "
+            "In live mode, synthetic fallback is prohibited. "
+            "Ensure course notes are ingested into the database."
+        )
     except Exception as exc:
-        logger.debug("Database retrieval unavailable for demonstration (%s); using verified reference chunks.", exc)
+        raise RuntimeError(
+            f"Database retrieval failed for live demonstration: {exc}. "
+            "In live mode, synthetic data replacement is prohibited. "
+            "Run without --live for the deterministic offline demonstration."
+        ) from exc
 
-    return REFERENCE_EDUCATIONAL_CHUNKS
+
+def _retrieve_sources_for_live_demo(query: str) -> list[dict[str, Any]]:
+    """Alias for live retrieval."""
+    return _retrieve_sources_for_demo(query, live=True)
 
 
 def run_demonstration(live: bool = False) -> dict[str, Any]:
     """Run the multi-level personalization demonstration.
 
     Args:
-        live: If True, calls live Gemini API; falls back to deterministic exemplars if unavailable.
+        live: If True, calls live Gemini API using real database retrieval;
+              fails with clear diagnostic message if DB is unavailable.
+              If False, runs deterministic offline demonstration.
 
     Returns:
         Dictionary containing demonstration results per level and execution metadata.
     """
-    mode_label = "LIVE GEMINI API GENERATION" if live else "DETERMINISTIC CURATED EXEMPLARS (OFFLINE)"
+    mode_label = "LIVE GEMINI API GENERATION (GROUNDED VIA NEON PGVECTOR)" if live else "DETERMINISTIC CURATED EXEMPLARS (OFFLINE)"
     print("=" * 78)
     print("🎓 EDUPATH — FEW-SHOT MULTI-LEVEL PERSONALIZATION DEMONSTRATION")
     print("Assignment Requirement: Adjust explanation style across 2-3 difficulty levels")
@@ -122,7 +151,23 @@ def run_demonstration(live: bool = False) -> dict[str, Any]:
         "levels": {},
     }
 
-    chunks = _retrieve_sources_for_demo(TARGET_QUESTION) if live else []
+    if live:
+        print("🔍 Querying Neon PostgreSQL pgvector for course evidence...")
+        chunks = _retrieve_sources_for_live_demo(TARGET_QUESTION)
+        print(f"✅ Retrieved {len(chunks)} verified source chunks from database:")
+        for idx, c in enumerate(chunks, 1):
+            title = c.get("source_title", "Curriculum Note")
+            doc_id = c.get("document_id", "N/A")
+            sim = c.get("similarity", 0.0)
+            print(f"   [S{idx}] {title} (ID: {doc_id}, Cosine Sim: {sim:.3f})")
+        print()
+    else:
+        chunks = REFERENCE_EDUCATIONAL_CHUNKS
+        print(f"ℹ️ Offline mode: Using {len(chunks)} version-controlled reference chunks:")
+        for idx, c in enumerate(chunks, 1):
+            title = c.get("source_title") or c.get("title", "Curriculum Note")
+            print(f"   [S{idx}] {title} (License: {c.get('source_license', 'Original')})")
+        print()
 
     for level in levels:
         print("-" * 78)
@@ -136,12 +181,15 @@ def run_demonstration(live: bool = False) -> dict[str, Any]:
         )
         print(f"Target Learner Persona: {persona}")
 
+        few_shot_prompt = format_few_shot_prompt_section(level)
+        print("\n--- FEW-SHOT PROMPT CONTEXT INJECTED ---")
+        print(few_shot_prompt[:300] + "... [truncated for display]\n")
+
         level_success = False
         if live:
             try:
                 from services.answer_generation_service import generate_grounded_answer
 
-                few_shot_prompt = format_few_shot_prompt_section(level)
                 guidance = {
                     "level": level,
                     "instruction": LEVEL_INSTRUCTIONS[level],
@@ -170,9 +218,8 @@ def run_demonstration(live: bool = False) -> dict[str, Any]:
                     "citations": citations,
                 }
                 level_success = True
-
             except Exception as exc:
-                print(f"⚠️ Live Gemini generation failed ({exc}); gracefully falling back to deterministic exemplar.")
+                print(f"⚠️ Live Gemini generation failed for {level} ({exc}); falling back to curated exemplar.")
                 level_success = False
 
         if not level_success:

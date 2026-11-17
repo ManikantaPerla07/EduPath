@@ -511,6 +511,9 @@ def _process_question(
     # The saved transcript will be the only source used for rendering.
     try:
         with st.spinner("EduPath is preparing your explanation..."):
+            learner_state = st.session_state.get("edupath_learner", {})
+            ai_consent_active = bool(learner_state.get("ai_consent", False))
+            adult_confirmed = bool(learner_state.get("adult_confirmation", False))
             result = run_tutor_graph(
                 question=question,
                 course_slug=COURSE_SLUG,
@@ -518,6 +521,8 @@ def _process_question(
                 conversation_history=conversation_history,
                 user_id=user_id,
                 session_id=session_id,
+                ai_consent=ai_consent_active,
+                adult_confirmation=adult_confirmed,
             )
 
         answer = result["answer"]
@@ -530,7 +535,14 @@ def _process_question(
                 "enough evidence for this question.*"
             )
         elif result.get("model"):
-            answer += f"\n\n*Generated with {result['model']}.*"
+            provider_label = result.get("provider")
+            if provider_label:
+                answer += (
+                    f"\n\n*Generated with {provider_label.title()} "
+                    f"({result['model']}).*"
+                )
+            else:
+                answer += f"\n\n*Generated with {result['model']}.*"
 
         teaching_profile = result.get("teaching_profile")
 
@@ -558,6 +570,10 @@ def _process_question(
         )
 
     except AgentRunAlreadyActiveError as exc:
+        st.warning(str(exc))
+        return
+
+    except PermissionError as exc:
         st.warning(str(exc))
         return
 
@@ -649,10 +665,28 @@ def _render_subjective_practice_expander(user_id: str) -> None:
             key=f"edupath_subj_text_{selected_key}",
         )
 
+        st.caption("🔒 *Privacy Advisory: Avoid submitting personal identifying information or credentials. Code syntax is preserved.*")
+
+        use_ai_eval = st.toggle(
+            "Enable Gemini AI Rubric Evaluation",
+            value=False,
+            key=f"edupath_subj_ai_toggle_{selected_key}",
+            help="When enabled, your answer is evaluated by Google Gemini using structured pedagogical rubrics. No personal account info or emails are sent. When disabled, the instant deterministic rule-based evaluator is used.",
+        )
+
         if st.button("Evaluate My Explanation", key=f"edupath_subj_submit_{selected_key}", type="primary"):
             if not student_explanation or not student_explanation.strip():
                 st.warning("Please enter your explanation before submitting.")
                 return
+
+            learner_state = st.session_state.get("edupath_learner", {})
+            ai_consent_active = bool(learner_state.get("ai_consent", False))
+            adult_confirmed = bool(learner_state.get("adult_confirmation", False))
+            effective_use_ai = use_ai_eval and ai_consent_active and adult_confirmed
+            if use_ai_eval and not ai_consent_active:
+                st.info("ℹ️ AI Evaluation requires explicit AI Processing Consent. Using deterministic rubric evaluation.")
+            elif use_ai_eval and not adult_confirmed:
+                st.info("ℹ️ AI Evaluation requires affirmative adult self-confirmation (18+). Using deterministic rubric evaluation.")
 
             try:
                 eval_result = evaluate_subjective_explanation(
@@ -660,6 +694,10 @@ def _render_subjective_practice_expander(user_id: str) -> None:
                     reference_answer=selected_topic["reference_answer"],
                     student_explanation=student_explanation.strip(),
                     topic_slug=selected_topic["topic_slug"],
+                    use_ai=effective_use_ai,
+                    user_id=user_id,
+                    ai_consent=ai_consent_active,
+                    adult_confirmation=adult_confirmed,
                 )
 
                 score = eval_result["score_percent"]
@@ -667,8 +705,11 @@ def _render_subjective_practice_expander(user_id: str) -> None:
                 rubric = eval_result["rubric_breakdown"]
                 misconceptions = eval_result["detected_misconceptions"]
                 feedback = eval_result["feedback"]
+                eval_label = eval_result.get("evaluator_label", "Rubric Evaluator")
 
                 st.markdown("---")
+                st.caption(f"Evaluator Mode · **{eval_label}**")
+
                 if passed:
                     st.success(f"### 🎉 Overall Score: {score}% — Strong Conceptual Understanding")
                 else:
@@ -683,10 +724,26 @@ def _render_subjective_practice_expander(user_id: str) -> None:
 
                 if misconceptions:
                     st.error("#### ⚠️ Detected Conceptual Misconception(s)")
+                    from services.misconception_service import record_learner_misconceptions
+                    record_learner_misconceptions(user_id=user_id, diagnoses=misconceptions)
+
                     for m in misconceptions:
-                        st.markdown(f"- **Misconception:** {m['misconception']}\n  - **Correction:** {m['correction']}")
+                        desc = m.get("short_description") or m.get("misconception", "")
+                        corr = m.get("corrective_explanation") or m.get("correction", "")
+                        code = m.get("misconception_code")
+                        code_str = f"`{code}`: " if code else ""
+                        st.markdown(f"- **{code_str}Misconception:** {desc}\n  - **Correction:** {corr}")
+
+                    st.session_state["edupath_last_diagnosed_misconception"] = misconceptions[0].get("misconception_code")
+                    st.info(
+                        "💡 *This misconception has been recorded in your formative learning profile. "
+                        "Subsequent AI Tutor explanations will include targeted corrective demonstrations.*"
+                    )
 
                 st.info(f"💡 **Constructive Formative Feedback:**\n\n{feedback}")
+
+                if eval_result.get("fallback_reason"):
+                    st.caption(f"ℹ️ {eval_result['fallback_reason']}")
 
                 st.caption(
                     "🔒 *Server-side authorization verified. Note: This rubric assessment is formative and "
@@ -709,6 +766,68 @@ def render_tutor(learner: dict) -> None:
     )
 
     user_id = str(learner["user_id"])
+    adult_confirmed = bool(learner.get("adult_confirmation", False))
+    ai_consent_granted = bool(learner.get("ai_consent", False))
+
+    if not adult_confirmed:
+        with st.container(border=True):
+            st.warning("### 🔞 Adult Self-Confirmation Required")
+            st.markdown(
+                "EduPath's AI Tutor is strictly restricted to adult learners (18 years of age or older) in accordance "
+                "with the Google Gemini API Additional Terms. Please complete your adult self-confirmation in "
+                "the initial onboarding screen or your Learner Profile before accessing generative AI features."
+            )
+            st.caption("🔒 *EduPath relies on contractual affirmative self-confirmation; identity or age verification is not performed.*")
+        return
+
+    if not ai_consent_granted:
+        with st.container(border=True):
+            st.warning("### 🔒 Generative AI Consent Required")
+            st.markdown(
+                "EduPath's AI Tutor utilizes **Google Gemini** as the primary provider and **Groq** as a secondary failover provider "
+                "to generate dynamic, personalized explanations and evaluate conceptual answers. To protect your "
+                "privacy, generative AI processing requires your explicit affirmative consent before any questions "
+                "are submitted to external model providers."
+            )
+            st.markdown(
+                "**Provider Privacy & Data Handling Policies:**\n"
+                "- **Google Gemini (Unpaid / Free Tier API):** Under Google AI Studio free tier terms, input prompts and output responses "
+                "may be reviewed by human reviewers and used by Google to train and improve products and machine-learning technologies. "
+                "(Paid Google Cloud API terms differ, but EduPath operates under a ₹0 budget using free-tier endpoints).\n"
+                "- **Groq (Secondary Failover):** Under the Groq Services Agreement, customer data is **not** used to train models. "
+                "Inputs and outputs are processed ephemerally, but may be retained by default for up to 30 days solely for system reliability and abuse monitoring. "
+                "(Groq provides a self-service Zero Data Retention toggle in GroqCloud Console Data Controls; ZDR is not claimed active without administrative verification in the account).\n"
+                "- **Age Restriction:** Under the Google Gemini API Additional Terms, services must not be directed towards or likely to be accessed by individuals under 18. "
+                "EduPath is strictly restricted to adult learners (18+) via affirmative self-confirmation.\n\n"
+                "**What is sent to LLM providers (Google Gemini / Groq):**\n"
+                "- Current question and recent conversation history for context disambiguation.\n"
+                "- Retrieved course excerpts from original EduPath educational resources for factual grounding.\n"
+                "- Learner progress, study-plan summaries, and active topic misconceptions when requested by agent tools.\n"
+                "- Anonymous proficiency tier indicators (e.g., beginner/intermediate) and explanation style.\n"
+                "- Student-written explanations submitted for conceptual practice evaluation.\n\n"
+                "**What is NEVER sent:**\n"
+                "- Your name, email address, OAuth tokens, credentials, or personal identity.\n"
+                "- Your database passwords, session tokens, or unrelated account records.\n\n"
+                "⚠️ **Learner Privacy Advisory:** To prevent accidental data disclosure while ensuring your Python code "
+                "syntax and decorators remain uncorrupted by automated redaction, **never enter real passwords, "
+                "API keys, email addresses, phone numbers, or sensitive personal information into your questions or code.**"
+            )
+            c1, c2 = st.columns([2, 3])
+            if c1.button("✅ Grant AI Consent & Enable AI Tutor", type="primary", key="grant_ai_consent_tutor_btn"):
+                from services.learner_service import set_ai_consent
+                set_ai_consent(user_id=user_id, consent=True)
+                learner["ai_consent"] = True
+                st.session_state["edupath_learner"] = learner
+                st.session_state[f"edupath_ai_consent_{user_id}"] = True
+                st.session_state[f"edupath_ai_consent_synced_db_{user_id}"] = True
+                st.success("AI Processing Consent granted. You can now use the AI Tutor!")
+                st.rerun()
+
+            st.caption(
+                "💡 *Declining AI consent keeps all non-AI features fully available, including "
+                "Assessments, Study Plans, Learning Analytics, and Learning Resources. Consent is never bypassed during provider failover.*"
+            )
+        return
 
     # Load only this learner's saved conversations.
     try:
@@ -785,6 +904,8 @@ def render_tutor(learner: dict) -> None:
         with chip_col3:
             if st.button("🔍 Explain with Analogy", key="edupath_analogy_chip", width="stretch", help="Request an everyday analogy"):
                 quick_prompt = "Can you explain this concept using a simple everyday analogy and a small code example?"
+
+    st.caption("🔒 *Privacy Advisory: Never submit passwords, secrets, or sensitive personal data. Python code syntax is preserved.*")
 
     input_question = st.chat_input(
         "Ask your Python question...",

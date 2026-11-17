@@ -165,6 +165,8 @@ class ReActAgent:
 def run_experiment():
     print("=" * 75)
     print("EXPERIMENT 09: ReAct (REASONING + ACTING) AGENT MULTI-TOOL TRACE")
+    print("Architecture: Deterministic ReAct Protocol Demonstration (Yao et al., 2022)")
+    print("Academic Distinction: Allowlisted tool registry trace; production LLM tool routing uses LangGraph")
     print("=" * 75)
 
     agent = ReActAgent(tools=AVAILABLE_TOOLS)

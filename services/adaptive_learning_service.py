@@ -58,9 +58,20 @@ DEFAULT_TEACHING_GUIDANCE = TEACHING_STRATEGIES["not_assessed"]
 def build_adaptive_teaching_profile(
     retrieved_chunks: list[dict[str, Any]],
     topic_progress: list[dict[str, Any]],
+    learner_profile: dict[str, Any] | None = None,
+    misconceptions: list[dict[str, Any]] | list[str] | None = None,
 ) -> dict[str, Any]:
-    """Select teaching guidance from the highest-ranked retrieved topic."""
+    """Select teaching guidance from highest-ranked retrieved topic and learner profile.
 
+    Adheres strictly to the Phase B1 selection policy:
+    1. When topic mastery indicates 'needs_revision', prioritize foundational explanations.
+    2. When mastery indicates 'developing', use intermediate guided explanations.
+    3. When mastery indicates 'candidate_for_mastery', use advanced explanations.
+    4. When topic performance is unavailable/not_assessed, use declared proficiency as baseline.
+    5. Apply preferred language and explanation style as presentation preferences.
+    6. Known learner misconceptions inject targeted corrective exemplars into few-shot context.
+    7. Never allow declared proficiency or misconceptions to override factual course evidence.
+    """
     if not isinstance(retrieved_chunks, list):
         raise ValueError("Retrieved chunks must be a list.")
 
@@ -76,54 +87,81 @@ def build_adaptive_teaching_profile(
             raise ValueError("Every retrieved chunk must be a mapping.")
 
         topic_slug = chunk.get("topic_slug")
-
         if topic_slug is not None:
             if not isinstance(topic_slug, str) or not topic_slug.strip():
                 raise ValueError("Retrieved topic slug is invalid.")
-
             primary_topic_slug = topic_slug.strip()
             break
 
     selected_progress = None
-
     if primary_topic_slug is not None:
         for record in topic_progress:
             if not isinstance(record, Mapping):
                 raise ValueError("Every progress record must be a mapping.")
-
             if record.get("topic_slug") == primary_topic_slug:
                 selected_progress = record
                 break
 
-    if selected_progress is None:
-        strategy = DEFAULT_TEACHING_GUIDANCE
+    declared_proficiency = None
+    preferred_language = None
+    explanation_style = None
+    if isinstance(learner_profile, Mapping):
+        declared_proficiency = learner_profile.get("proficiency_level")
+        preferred_language = learner_profile.get("preferred_language")
+        explanation_style = learner_profile.get("explanation_style")
 
-        return {
-            "topic_slug": primary_topic_slug,
-            "topic_name": None,
-            "mastery_status": "not_assessed",
-            "few_shot_section": format_few_shot_prompt_section(strategy["level"]),
-            **strategy,
-        }
+    if selected_progress is None or selected_progress.get("mastery_status") == "not_assessed":
+        # Topic mastery unavailable: use declared proficiency baseline
+        if declared_proficiency == "advanced":
+            strategy = dict(TEACHING_STRATEGIES["candidate_for_mastery"])
+            mastery_status = "not_assessed"
+        elif declared_proficiency == "intermediate":
+            strategy = dict(TEACHING_STRATEGIES["developing"])
+            mastery_status = "not_assessed"
+        else:
+            strategy = dict(DEFAULT_TEACHING_GUIDANCE)
+            mastery_status = "not_assessed"
+        topic_name = None
+    else:
+        mastery_status = selected_progress.get("mastery_status")
+        if mastery_status not in TEACHING_STRATEGIES:
+            raise ValueError("Learner topic mastery status is invalid.")
+        strategy = dict(TEACHING_STRATEGIES[mastery_status])
+        topic_name = selected_progress.get("topic_name")
+        if topic_name is not None and not isinstance(topic_name, str):
+            raise ValueError("Topic name must be a string or None.")
 
-    mastery_status = selected_progress.get("mastery_status")
+    # Apply presentation preferences (style and language) without overriding facts
+    custom_instructions = [strategy["instruction"]]
+    if explanation_style and explanation_style.strip():
+        custom_instructions.append(
+            f"Presentation style preference: The learner prefers {explanation_style.strip()} explanations."
+        )
+    if preferred_language and preferred_language.strip() and preferred_language.strip().lower() != "english":
+        custom_instructions.append(
+            f"Language preference: Respond in {preferred_language.strip()}, keeping all Python code and syntax in English."
+        )
+    effective_instruction = " ".join(custom_instructions)
 
-    if mastery_status not in TEACHING_STRATEGIES:
-        raise ValueError("Learner topic mastery status is invalid.")
-
-    strategy = TEACHING_STRATEGIES[mastery_status]
-
-    topic_name = selected_progress.get("topic_name")
-
-    if topic_name is not None and not isinstance(topic_name, str):
-        raise ValueError("Topic name must be a string or None.")
+    # Format few-shot section with level, declared proficiency, mastery, and misconceptions
+    few_shot_section = format_few_shot_prompt_section(
+        level=strategy["level"],
+        declared_proficiency=declared_proficiency,
+        topic_mastery=mastery_status,
+        misconceptions=misconceptions,
+        preferred_style=explanation_style,
+        preferred_language=preferred_language,
+    )
 
     return {
         "topic_slug": primary_topic_slug,
         "topic_name": topic_name,
         "mastery_status": mastery_status,
-        "few_shot_section": format_few_shot_prompt_section(strategy["level"]),
-        **strategy,
+        "declared_proficiency": declared_proficiency,
+        "level": strategy["level"],
+        "label": strategy["label"],
+        "instruction": effective_instruction,
+        "few_shot_section": few_shot_section,
     }
 
 
@@ -132,12 +170,11 @@ def get_learner_teaching_profile(
     course_slug: str,
     retrieved_chunks: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
-    """Load learner progress and derive teaching guidance.
+    """Load learner progress, profile preferences, and misconceptions to derive teaching guidance.
 
     When no learner ID is supplied, return None. This preserves the
     ability to run the tutoring graph without learner-specific data.
     """
-
     if user_id is None:
         return None
 
@@ -149,7 +186,23 @@ def get_learner_teaching_profile(
         course_slug=course_slug,
     )
 
+    learner_profile = None
+    active_misconceptions = []
+    try:
+        from services.learner_service import get_learner_profile
+        learner_profile = get_learner_profile(user_id=user_id)
+    except Exception:
+        pass
+
+    try:
+        from services.misconception_service import fetch_active_learner_misconceptions
+        active_misconceptions = fetch_active_learner_misconceptions(user_id=user_id)
+    except Exception:
+        pass
+
     return build_adaptive_teaching_profile(
         retrieved_chunks=retrieved_chunks,
         topic_progress=topic_progress,
+        learner_profile=learner_profile,
+        misconceptions=active_misconceptions,
     )

@@ -4,7 +4,10 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from services.embedding_service import EMBEDDING_MODEL
-from services.retrieval_service import search_knowledge_base
+from services.retrieval_service import (
+    search_knowledge_base,
+    search_knowledge_base_lexical,
+)
 
 
 QUERY_VECTOR = [0.01] * 768
@@ -330,6 +333,85 @@ class RetrievalDatabaseTests(unittest.TestCase):
         self.assertIn("topic_name", result)
         self.assertIn("content", result)
         self.assertIn("similarity", result)
+
+    def test_search_knowledge_base_lexical_returns_grounded_chunks(self):
+        connection, cursor = make_database_connection([SAMPLE_ROW])
+
+        with (
+            patch(
+                "services.retrieval_service.load_database_url",
+                return_value="postgresql://test",
+            ),
+            patch(
+                "services.retrieval_service.psycopg.connect",
+                return_value=connection,
+            ),
+        ):
+            results = search_knowledge_base_lexical(
+                query="Python variables",
+                course_slug="python-basics",
+                topic_slug="variables-data-types",
+                limit=3,
+            )
+
+        sql, parameters = cursor.execute.call_args.args
+        self.assertIn("to_tsvector", sql)
+        self.assertIn("plainto_tsquery", sql)
+        self.assertIn("python-basics", parameters)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["retrieval_mode"], "lexical_fallback")
+        self.assertIsNone(results[0]["similarity"])
+        self.assertEqual(results[0]["lexical_rank"], 0.87)
+        self.assertEqual(results[0]["lexical_score"], 0.87)
+
+    def test_search_knowledge_base_lexical_empty_when_no_match(self):
+        connection, _ = make_database_connection([])
+
+        with (
+            patch(
+                "services.retrieval_service.load_database_url",
+                return_value="postgresql://test",
+            ),
+            patch(
+                "services.retrieval_service.psycopg.connect",
+                return_value=connection,
+            ),
+        ):
+            results = search_knowledge_base_lexical(
+                query="quantum computing entanglement",
+                course_slug="python-basics",
+            )
+
+        self.assertEqual(results, [])
+
+    def test_search_knowledge_base_fallback_to_lexical_when_enabled(self):
+        connection, _ = make_database_connection([SAMPLE_ROW])
+        embeddings = make_embeddings_mock(
+            side_effect=RuntimeError("Embedding API quota exceeded")
+        )
+
+        with (
+            patch(
+                "services.retrieval_service.EduPathGeminiEmbeddings",
+                return_value=embeddings,
+            ),
+            patch(
+                "services.retrieval_service.load_database_url",
+                return_value="postgresql://test",
+            ),
+            patch(
+                "services.retrieval_service.psycopg.connect",
+                return_value=connection,
+            ),
+        ):
+            results = search_knowledge_base(
+                query="Python variables",
+                course_slug="python-basics",
+                fallback_to_lexical=True,
+            )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["retrieval_mode"], "lexical_fallback")
 
 
 if __name__ == "__main__":

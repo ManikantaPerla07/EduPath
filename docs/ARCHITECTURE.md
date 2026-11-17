@@ -16,19 +16,23 @@ flowchart TD
         UI --> Nav[Navigation Router]
         Nav --> P_Dash[Dashboard]
         Nav --> P_Prof[Learner Profile]
+        Nav --> P_Plan[Personalized Learning Path]
         Nav --> P_Tutor[AI Tutor Chat]
         Nav --> P_Assess[Assessments]
-        Nav --> P_Plan[Study Plan]
-        Nav --> P_Admin[Knowledge Management]
+        Nav --> P_Analytics[Learning Analytics]
+        Nav --> P_Res[Learning Resources]
+        Nav --> P_Admin[Knowledge Management - Admin]
     end
 
     subgraph Service_Layer [Core Service Layer]
         P_Prof --> S_Learn[Learner Service]
-        P_Assess --> S_Assess[Assessment & Grading Services]
         P_Plan --> S_Plan[Study Plan Service]
-        S_Assess --> S_Prog[Progress Service]
+        P_Assess --> S_Assess[Assessment & Grading Services]
+        P_Analytics --> S_Prog[Progress & Misconception Services]
+        P_Res --> S_Doc[Document & Embedding Services]
+        P_Admin --> S_Doc
+        S_Assess --> S_Prog
         S_Prog --> S_Adapt[Adaptive Learning Service]
-        P_Admin --> S_Doc[Document & Embedding Services]
     end
 
     subgraph Agent_Layer [LangGraph Orchestration & RAG]
@@ -53,11 +57,30 @@ flowchart TD
         Graph <--> Checkpoints[(LangGraph Checkpoint Tables)]
     end
 
-    subgraph Cloud_AI [Google Cloud AI]
+    subgraph Cloud_AI [Multi-LLM & Embedding Layer]
         S_Doc <-->|Generate Embeddings 768d| Gem_Emb[Gemini Embedding 2]
-        Node_Ans <-->|Grounded Prompting| Gem_Chat[Gemini 3.8 Flash / 3.5 Lite]
+        Node_Ans <-->|Primary LLM| Gem_Chat[Gemini 3.8 Flash / 3.5 Lite]
+        Node_Ans -.->|Failover Secondary LLM| Groq_Chat[Groq openai/gpt-oss-120b / 20b]
     end
 ```
+
+---
+
+## 2. Multi-LLM Provider Architecture & Failover
+EduPath integrates a resilient multi-provider abstraction layer implemented in `services/llm_provider_service.py`:
+- **Primary Provider (Google Gemini):**
+  - Primary Generation: `gemini-3.8-flash`
+  - Fast Fallback: `gemini-3.5-flash-lite`
+- **Secondary Provider (Groq):**
+  - Secondary Primary: `openai/gpt-oss-120b` (fully verified native tool-calling and structured rubric evaluation)
+  - Secondary Fast Fallback: `openai/gpt-oss-20b` (<1s latency)
+- **Vector Embedding Separation:**
+  - Strictly isolated to Google Gemini `gemini-embedding-2` producing 768-dimensional vectors stored in Neon pgvector.
+  - Groq is never invoked for embeddings, preserving vector index consistency.
+- **Failover Logic:**
+  - Automatically switches on transient server errors (`500`, `502`, `503`, `504`, `524`), rate limits / quota exhaustion (`429 RESOURCE_EXHAUSTED`), connection timeouts, and transport interruptions.
+  - Strictly does NOT switch on client-side errors (`400 Bad Request`, prompt validation failures).
+  - Output attribution is honestly labeled in response metadata and UI.
 
 ---
 

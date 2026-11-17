@@ -234,6 +234,7 @@ class ChatDatabaseTests(unittest.TestCase):
         self.assertIn("u.is_active = TRUE", sql)
         self.assertIn("FOR SHARE OF u", sql)
         self.assertIn("c.course_slug = %s", sql)
+        self.assertIn("c.is_published = TRUE", sql)
 
     @patch("services.chat_service.load_database_url", return_value="test-db")
     @patch("services.chat_service.psycopg.connect")

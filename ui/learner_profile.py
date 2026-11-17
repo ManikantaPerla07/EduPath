@@ -6,6 +6,8 @@ import psycopg
 from services.learner_service import (
     get_learner_profile,
     update_learner_profile,
+    set_ai_consent,
+    delete_learner_account,
     VALID_PROFICIENCY_LEVELS,
     VALID_EXPLANATION_STYLES,
 )
@@ -27,6 +29,16 @@ def render_learner_profile(learner: dict) -> None:
         current_profile = get_learner_profile(user_id)
     except Exception:
         current_profile = learner
+
+    db_consent = bool(current_profile.get("ai_consent", False))
+    consent_key = f"edupath_ai_consent_{user_id}"
+    sync_key = f"edupath_ai_consent_synced_db_{user_id}"
+
+    # Initialize or synchronize session state from authoritative database value
+    # whenever entering the profile or if the database state changes.
+    if sync_key not in st.session_state or st.session_state.get(sync_key) != db_consent:
+        st.session_state[consent_key] = db_consent
+        st.session_state[sync_key] = db_consent
 
     proficiency = current_profile.get("proficiency_level") or "beginner"
     explanation_style = current_profile.get("explanation_style") or "step_by_step"
@@ -98,6 +110,21 @@ def render_learner_profile(learner: dict) -> None:
             help="Keywords from your goal help prioritize relevant study plan topics.",
         )
 
+        st.markdown("#### Generative AI Privacy Notice & Consent")
+        st.caption(
+            "EduPath uses Google Gemini (primary) and Groq (secondary failover) to answer questions and evaluate practice responses. "
+            "Under Google's unpaid API terms, prompts may be reviewed and used to train Google models; Groq does not train on customer inputs but may retain logs up to 30 days for safety. "
+            "Your email address, personal name, and credentials are **never transmitted** to any provider. "
+            "To preserve Python code syntax and decorators without automated regex disruption, "
+            "never enter real passwords, API keys, phone numbers, or sensitive personal data into tutor prompts."
+        )
+        ai_consent_val = st.checkbox(
+            "I consent to processing my educational questions with Generative AI (Google Gemini & Groq failover)",
+            value=bool(st.session_state.get(consent_key, db_consent)),
+            key=consent_key,
+            help="Declining AI consent restricts tutoring features while preserving access to assessments, learning analytics, learning resources, and study materials.",
+        )
+
         submitted = st.form_submit_button(
             "Save Profile Changes",
             type="primary",
@@ -114,17 +141,54 @@ def render_learner_profile(learner: dict) -> None:
                 preferred_language=new_language,
                 learning_goal=new_goal,
             )
+            consent_to_persist = bool(ai_consent_val)
+            set_ai_consent(user_id=user_id, consent=consent_to_persist)
 
-            # Update cached session state
+            # Reload fresh profile directly from PostgreSQL to verify persistence
+            fresh_profile = get_learner_profile(user_id)
+            persisted_consent = bool(fresh_profile.get("ai_consent", False))
+            if persisted_consent != consent_to_persist:
+                raise RuntimeError("Consent update could not be verified in the database.")
+
+            # Update cached session state (never modify widget key consent_key during this run!)
             for key in ("proficiency_level", "explanation_style", "daily_study_minutes", "preferred_language", "learning_goal"):
                 if key in updated:
                     learner[key] = updated[key]
+            learner["ai_consent"] = persisted_consent
             st.session_state["edupath_learner"] = learner
+            st.session_state[sync_key] = persisted_consent
 
             st.success("Your learning preferences have been saved successfully!")
             st.rerun()
 
-        except (ValueError, PermissionError) as exc:
+        except (ValueError, PermissionError, RuntimeError) as exc:
             st.error(str(exc))
         except psycopg.Error:
             st.error("Could not save your preferences due to a database error. Please try again.")
+
+    st.divider()
+    with st.expander("⚠️ Account Data & Privacy Controls", expanded=False):
+        st.markdown("#### Permanent Account Deletion")
+        st.write(
+            "Permanently delete your EduPath account and all associated data, including "
+            "saved profile preferences, assessment attempts, mastery scores, study plans, "
+            "chat sessions, and formative misconception records. This action is irreversible."
+        )
+        confirm_text = st.text_input(
+            "Type DELETE to confirm permanent account deletion:",
+            key="edupath_delete_account_input",
+        )
+        if st.button("Permanently Delete My EduPath Account", type="primary", key="edupath_delete_account_btn"):
+            if confirm_text.strip() == "DELETE":
+                try:
+                    deleted = delete_learner_account(user_id)
+                    if deleted:
+                        st.session_state.clear()
+                        st.success("Your account and all associated data have been permanently deleted.")
+                        st.rerun()
+                    else:
+                        st.error("Unable to delete account. Please try again.")
+                except Exception as exc:
+                    st.error(f"Error during account deletion: {exc}")
+            else:
+                st.warning("Please type 'DELETE' in all capital letters to confirm account deletion.")

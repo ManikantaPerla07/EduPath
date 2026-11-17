@@ -14,11 +14,16 @@ import math
 import numpy as np
 
 
-def simple_tokenize(text: str) -> list[str]:
-    """Basic subword/whitespace tokenizer with punctuation separation."""
+def whitespace_punctuation_tokenize(text: str) -> list[str]:
+    """Basic whitespace and punctuation tokenizer."""
     import re
     cleaned = re.sub(r'([.,!?;:])', r' \1 ', text)
     return [t for t in cleaned.strip().split() if t]
+
+
+def simple_tokenize(text: str) -> list[str]:
+    """Alias for backwards compatibility: whitespace and punctuation tokenizer."""
+    return whitespace_punctuation_tokenize(text)
 
 
 def build_vocabulary(tokens: list[str]) -> tuple[dict[str, int], dict[int, str]]:
@@ -90,10 +95,11 @@ def run_experiment():
     token_to_id, id_to_token = build_vocabulary(tokens)
     token_ids = [token_to_id[t] for t in tokens]
 
-    print("Step 1: Tokenization and Vocabulary Mapping")
+    print("Step 1: Whitespace & Punctuation Tokenizer and Vocabulary Mapping")
     print(f"Tokens:     {tokens}")
     print(f"Token IDs:  {token_ids}")
-    print(f"Vocab Size: {len(token_to_id)}\n")
+    print(f"Vocab Size: {len(token_to_id)}")
+    print("Tokenizer Architecture: Whitespace & Punctuation Tokenizer (not BPE subword segmentation)\n")
 
     # 2. Embedding simulation (dim = 4)
     np.random.seed(42)

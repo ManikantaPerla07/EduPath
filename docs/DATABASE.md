@@ -132,9 +132,44 @@ erDiagram
 ---
 
 ## 3. Migration History Summary
-1. `001_initial_schema.sql`: Core schema (users, profiles, courses, topics, assessments, chat, document registry, telemetry).
+1. `001_initial_schema.sql`: Core schema (users, profiles, courses, topics, assessments, chat, document registry, telemetry). Defines `adult_confirmation BOOLEAN NOT NULL DEFAULT FALSE`.
 2. `002_question_bank_key.sql`: Unique constraint on `question_code` for reliable seeding and idempotent verification.
 3. `003_document_chunks.sql`: Added `document_chunks` table with `vector(768)` column for pgvector similarity search.
 4. `004_document_archival.sql`: Added `archived_at` column and partial index for non-destructive document retirement.
 5. `005_chat_message_feedback.sql`: Added `chat_message_feedback` table for student ratings (thumbs up/down).
 6. `006_chat_and_tutor_run_indexes.sql`: Optimized partial indexes for active agent runs and user question limits.
+7. `007_learner_profile_and_misconceptions.sql`: Forward-only unapplied migration adding `onboarding_completed` (DEFAULT FALSE), `ai_consent` (DEFAULT FALSE), `ai_consent_granted_at` (DEFAULT NULL), and `learner_misconceptions` table. **REQUIRED PRE-DEPLOYMENT PREREQUISITE:** This migration is required before enabling the generative AI Tutor in production, as persistent affirmative AI consent and formative misconception tracking depend on these database columns. Without migration 007, EduPath operates safely in non-AI mode.
+
+---
+
+## 4. Authorization & Row-Level Isolation Architecture
+EduPath enforces multi-tenant boundary isolation at the **application and service layer** using parameterized SQL queries with authenticated session `user_id` constraints (`WHERE user_id = %s`).
+> [!NOTE]
+> Native PostgreSQL Row-Level Security (RLS) policies are **not configured** on the Neon instance. All cross-tenant isolation is strictly guaranteed by server-side query scoping, server-side UUID verification, and LangGraph checkpointer thread boundaries.
+
+---
+
+## 5. Migration 007 Safe Rollback Procedure
+If migration `007_learner_profile_and_misconceptions` must ever be rolled back:
+> [!NOTE]
+> Dependency verification: No views or foreign key constraints in migrations 001–007 reference `learner_misconceptions`. Therefore, `CASCADE` is strictly omitted from the table deletion.
+
+```sql
+BEGIN;
+
+-- 1. Drop indexes and table (no CASCADE required)
+DROP INDEX IF EXISTS idx_learner_misconceptions_code;
+DROP INDEX IF EXISTS idx_learner_misconceptions_user_topic;
+DROP TABLE IF EXISTS learner_misconceptions;
+
+-- 2. Drop columns added to learner_profiles
+ALTER TABLE learner_profiles DROP COLUMN IF EXISTS ai_consent_granted_at;
+ALTER TABLE learner_profiles DROP COLUMN IF EXISTS ai_consent;
+ALTER TABLE learner_profiles DROP COLUMN IF EXISTS onboarding_completed;
+
+-- 3. Delete migration record from tracking table
+DELETE FROM schema_migrations
+WHERE version = '007_learner_profile_and_misconceptions';
+
+COMMIT;
+```

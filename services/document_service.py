@@ -991,3 +991,66 @@ def restore_course_document(
         "archived": False,
         "changed": True,
     }
+
+
+def list_published_learning_resources(
+    course_slug: str,
+) -> list[dict[str, Any]]:
+    """Retrieve approved, published learning resources for learners.
+
+    Restricted to ready, non-archived documents. Does NOT expose raw file bytes,
+    file hashes, administrative audit flags, or private storage locations.
+    """
+    course_slug = _validate_required_text(course_slug, "Course slug")
+
+    with psycopg.connect(
+        load_database_url(),
+        connect_timeout=20,
+    ) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    d.document_id::TEXT,
+                    d.source_title,
+                    d.source_license,
+                    d.rights_basis,
+                    t.topic_slug,
+                    t.topic_name,
+                    COUNT(dc.chunk_id)::INTEGER AS chunk_count
+                FROM documents AS d
+                JOIN courses AS c
+                    ON c.course_id = d.course_id
+                LEFT JOIN topics AS t
+                    ON t.topic_id = d.topic_id
+                   AND t.course_id = d.course_id
+                LEFT JOIN document_chunks AS dc
+                    ON dc.document_id = d.document_id
+                WHERE c.course_slug = %s
+                  AND d.processing_status = 'ready'
+                  AND d.archived_at IS NULL
+                GROUP BY
+                    d.document_id,
+                    d.source_title,
+                    d.source_license,
+                    d.rights_basis,
+                    t.topic_slug,
+                    t.topic_name
+                ORDER BY t.topic_name NULLS LAST, d.source_title;
+                """,
+                (course_slug,),
+            )
+            rows = cursor.fetchall()
+
+    return [
+        {
+            "document_id": row[0],
+            "source_title": row[1],
+            "source_license": row[2],
+            "rights_basis": row[3],
+            "topic_slug": row[4],
+            "topic_name": row[5] or "General Curriculum",
+            "chunk_count": row[6],
+        }
+        for row in rows
+    ]

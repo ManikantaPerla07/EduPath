@@ -42,9 +42,9 @@ All 10 academic practicals have been implemented and verified in `experiments/`.
 |---|---|---|
 | **LoRA Fine-Tuning (EXP-04)** | Layer-level NumPy gradient descent optimization on $W_0 + \frac{\alpha}{r}(B \cdot A)$ with $92.3\%$ loss drop and theoretical parameter derivation for 7B models. *No full 7B model is trained on GPU.* | In-context few-shot prompting via Gemini 2.5/3.5, avoiding heavy GPU hosting costs while achieving level-adapted explanations. |
 | **Vector Similarity (EXP-06)** | Standalone simulation with automatic NumPy fallback (`IndexFlatL2`, `IndexFlatIP`) over 28 sentences to ensure zero-cost Windows compatibility. | Persistent **Neon PostgreSQL with `pgvector 0.8.6`** executing cosine distance queries (`<=>`) over 768-dim embeddings (`gemini-embedding-2`) with ACID relational filtering. |
-| **RAG Pipeline (EXP-08)** | In-memory lexical TF-IDF bag-of-words retrieval over 7 OpenStax loop chunks with citation tagging and similarity thresholding. | Dense neural embedding retrieval using Google `gemini-embedding-2` (768 dimensions) across 47 chunks of original EduPath educational notes in Neon PostgreSQL. |
+| **RAG Pipeline (EXP-08)** | In-memory lexical TF-IDF bag-of-words retrieval over 7 illustrative synthetic loop chunks with citation tagging and similarity thresholding. | Dense neural embedding retrieval using Google `gemini-embedding-2` (768 dimensions) across 47 chunks of original EduPath educational notes in Neon PostgreSQL. |
 | **ReAct Agent (EXP-09)** | Deterministic programmatic trace of the `Thought -> Action -> Observation` cycle executing sandboxed Python functions. | Stateful LangGraph workflow with typed graph state, database checkpointing, and deterministic guardrails. |
-| **Safety Evaluation (EXP-10)** | 7 test cases evaluating prompt injection, hallucinated citation rejection (`[S99]`), cross-user data isolation, and code execution prevention. | Comprehensive server-side validation, parameterized SQL queries (`psycopg`), and untrusted data demarcation in prompts. |
+| **Safety Evaluation (EXP-10)** | 12 adversarial test cases evaluating prompt injection, hallucinated citation rejection (`[S99]`), system prompt leaks, cross-user data isolation, and code execution prevention. | Comprehensive server-side validation, parameterized SQL queries (`psycopg`), and untrusted data demarcation in prompts. |
 
 ---
 
@@ -55,13 +55,13 @@ A direct read-only SQL audit of the configured Neon PostgreSQL development datab
 - **Total Ready Chunks:** 47 chunks.
 - **Total Embedded Chunks:** 47 chunks (100% embedded).
 - **Active Embedding Model:** `gemini-embedding-2` (768 dimensions).
-- **Rights & Licensing:** All 11 documents are original educational notes authored for the EduPath project (`rights_basis = 'original'`). OpenStax serves as an external academic reference source and for standalone experiment excerpts, but was not bulk-ingested into production tables.
+- **Rights & Licensing:** All 11 documents are original educational notes authored for the EduPath project (`rights_basis = 'original'`). OpenStax *Introduction to Python Programming* is provided as an external supplementary reading link in compliance with Rice University's AI terms of use; written permission application has been drafted before any automated vector ingestion.
 
 ---
 
 ## 6. Experimental Results & Verification Summary
 
-- **Software Suite:** 569 automated tests passed, 77 subtests passed (0 failures) in under 10 seconds.
+- **Software Suite:** 615 automated tests passed, 77 subtests passed (0 failures) in under 10 seconds.
 - **RAG Retrieval Quality:** 100% retrieval coverage on 18-query golden benchmark, Mean Reciprocal Rank (MRR) of 0.963, 94.4% Hit@1, and 100% Hit@5 across all 9 course topics.
 - **Academic Practicals:** Completed all 10 CSE473 practical deliverables with zero external GPU requirements.
 - **Few-Shot Demonstration:** Successfully verified in both deterministic offline mode and live Gemini API generation (`--live`) with verified source citations.

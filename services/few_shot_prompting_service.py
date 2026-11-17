@@ -186,23 +186,130 @@ def get_few_shot_exemplars(level: str) -> list[dict[str, Any]]:
     return FEW_SHOT_EXEMPLARS.get(key, FEW_SHOT_EXEMPLARS["beginner"])
 
 
-def format_few_shot_prompt_section(level: str) -> str:
-    """Format few-shot exemplars as structured prompt context for the LLM."""
-    exemplars = get_few_shot_exemplars(level)
+def resolve_teaching_level(
+    declared_proficiency: str | None = None,
+    topic_mastery: str | None = None,
+) -> str:
+    """Resolve normalized teaching level following Phase B1 policy.
+
+    Selection Policy:
+    1. When topic mastery indicates 'needs_revision' -> beginner (foundational revision).
+    2. When topic mastery indicates 'developing' -> intermediate (guided practice).
+    3. When topic mastery indicates 'candidate_for_mastery' -> advanced (advanced application).
+    4. When topic mastery is unavailable or 'not_assessed', fall back to learner's declared proficiency.
+    5. Baseline default is beginner.
+    """
+    if topic_mastery:
+        clean_mastery = topic_mastery.strip().lower()
+        if clean_mastery == "needs_revision":
+            return "beginner"
+        if clean_mastery == "developing":
+            return "intermediate"
+        if clean_mastery == "candidate_for_mastery":
+            return "advanced"
+
+    if declared_proficiency:
+        clean_decl = declared_proficiency.strip().lower()
+        if clean_decl in ("intermediate", "guided_practice"):
+            return "intermediate"
+        if clean_decl in ("advanced", "candidate_for_mastery"):
+            return "advanced"
+
+    return "beginner"
+
+
+def select_personalized_few_shot_exemplars(
+    level: str | None = None,
+    declared_proficiency: str | None = None,
+    topic_mastery: str | None = None,
+    misconceptions: list[Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Select exemplars considering level, topic mastery, and active learner misconceptions.
+
+    When known misconceptions exist, targeted corrective exemplars from the catalogue
+    are injected first, ensuring the tutor addresses the student's actual error patterns.
+    """
+    from services.misconception_service import MISCONCEPTION_CATALOGUE
+
+    effective_level = level or resolve_teaching_level(
+        declared_proficiency=declared_proficiency,
+        topic_mastery=topic_mastery,
+    )
+    base_exemplars = list(get_few_shot_exemplars(effective_level))
+
+    # Identify and prepend targeted remedial exemplars for student's misconceptions
+    targeted_exemplars: list[dict[str, Any]] = []
+    if misconceptions:
+        seen_codes = set()
+        for m in misconceptions:
+            code = None
+            if isinstance(m, str):
+                code = m.strip()
+            elif isinstance(m, dict):
+                code = m.get("misconception_code")
+
+            if code and code in MISCONCEPTION_CATALOGUE and code not in seen_codes:
+                seen_codes.add(code)
+                entry = MISCONCEPTION_CATALOGUE[code]
+                rem = entry.get("remedial_exemplar")
+                if rem:
+                    remedial_copy = dict(rem)
+                    remedial_copy["is_targeted_remediation"] = True
+                    remedial_copy["misconception_code"] = code
+                    targeted_exemplars.append(remedial_copy)
+
+    # Return targeted corrective exemplars followed by standard level exemplars (up to 3 total)
+    combined = targeted_exemplars + base_exemplars
+    return combined[:3]
+
+
+def format_few_shot_prompt_section(
+    level: str,
+    declared_proficiency: str | None = None,
+    topic_mastery: str | None = None,
+    misconceptions: list[Any] | None = None,
+    preferred_style: str | None = None,
+    preferred_language: str | None = None,
+) -> str:
+    """Format few-shot exemplars as structured prompt context for the LLM.
+
+    Fully incorporates proficiency level, demonstrated mastery, individual misconceptions,
+    and presentation preferences.
+    """
+    exemplars = select_personalized_few_shot_exemplars(
+        level=level,
+        declared_proficiency=declared_proficiency,
+        topic_mastery=topic_mastery,
+        misconceptions=misconceptions,
+    )
     normalized_level = exemplars[0]["level"].upper() if exemplars else "BEGINNER"
 
     formatted_examples = []
     for idx, ex in enumerate(exemplars, start=1):
+        remediation_tag = ""
+        if ex.get("is_targeted_remediation"):
+            remediation_tag = f" [TARGETED REMEDIATION FOR KNOWN LEARNER MISTAKE: {ex.get('misconception_code')}]"
+
         formatted_examples.append(
-            f"--- EXEMPLAR {idx} ({normalized_level} LEVEL) ---\n"
+            f"--- EXEMPLAR {idx} ({ex.get('level', normalized_level).upper()} LEVEL{remediation_tag}) ---\n"
             f"Topic: {ex['topic']}\n"
             f"Learner Misconception Addressed: {ex['common_mistake']}\n"
             f"Learner Query: {ex['sample_question']}\n"
             f"Tutor Response Style:\n{ex['demonstration_response']}\n"
         )
 
+    preferences_header = ""
+    if preferred_style or preferred_language:
+        prefs = []
+        if preferred_style:
+            prefs.append(f"Style Preference: {preferred_style}")
+        if preferred_language:
+            prefs.append(f"Language: {preferred_language}")
+        preferences_header = f"LEARNER PREFERENCES: {', '.join(prefs)}\n"
+
     return (
         f"FEW-SHOT TEACHING DEMONSTRATIONS FOR {normalized_level} LEVEL:\n"
+        f"{preferences_header}"
         f"Notice how the tutor in these demonstrations adapts vocabulary, explanation depth, "
         f"hint structure, and practice questions to address learner level and common misconceptions.\n\n"
         + "\n".join(formatted_examples)

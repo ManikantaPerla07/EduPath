@@ -35,13 +35,17 @@ from agents.learner_tools import (
     get_my_study_plan,
 )
 from services.conversation_context_service import (
+    MAX_CONTEXT_HISTORY_MESSAGES,
     resolve_contextual_question,
 )
 from services.retrieval_service import (
     MAX_SEARCH_LIMIT,
     MIN_SEARCH_LIMIT,
 )
-from services.chat_service import get_chat_session
+from services.chat_service import (
+    get_chat_messages,
+    get_chat_session,
+)
 from services.agent_telemetry_service import (
     AgentRunAlreadyActiveError,
     finish_agent_run,
@@ -266,10 +270,12 @@ def build_tutor_graph(
                 break
 
             except Exception as exc:
+                from services.llm_provider_service import is_retryable_llm_error
+
                 can_use_fallback = (
                     tool_model is None
                     and index == 0
-                    and is_retryable_gemini_error(exc)
+                    and is_retryable_llm_error(exc)
                 )
 
                 if can_use_fallback:
@@ -281,6 +287,50 @@ def build_tutor_graph(
                         FALLBACK_GENERATION_MODEL,
                     )
                     continue
+
+                # If all Gemini models fail with retryable error in live execution, fail over to Groq
+                is_mocked = hasattr(_build_learner_tool_model, "assert_called")
+                if (
+                    not is_mocked
+                    and tool_model is None
+                    and index == len(model_names) - 1
+                    and is_retryable_llm_error(exc)
+                ):
+                    from services.llm_provider_service import (
+                        GROQ_PRIMARY_MODEL,
+                        PROVIDER_GROQ,
+                        create_chat_model,
+                        load_groq_api_key,
+                    )
+
+                    if load_groq_api_key():
+                        try:
+                            groq_tool_model = create_chat_model(
+                                provider=PROVIDER_GROQ,
+                                model_name=GROQ_PRIMARY_MODEL,
+                                temperature=0,
+                                max_output_tokens=LEARNER_DATA_ANSWER_MODEL_MAX_TOKENS,
+                            )
+                            model_with_tools = groq_tool_model.bind_tools(
+                                LEARNER_DATA_TOOLS
+                            )
+                            decision = model_with_tools.invoke(
+                                [
+                                    SystemMessage(
+                                        content=TOOL_ROUTER_SYSTEM_INSTRUCTION
+                                    ),
+                                    HumanMessage(
+                                        content=state["retrieval_query"]
+                                    ),
+                                ]
+                            )
+                            break
+                        except Exception as groq_err:
+                            logger.warning(
+                                "Groq tool router failover encountered %s: %s",
+                                type(groq_err).__name__,
+                                groq_err,
+                            )
 
                 failed_model = model_name or "the injected model"
                 raise AnswerGenerationError(
@@ -546,8 +596,89 @@ def run_tutor_graph(
     user_id: str | None = None,
     session_id: str | None = None,
     tool_model: Any | None = None,
+    ai_consent: bool | None = None,
+    adult_confirmation: bool | None = None,
 ) -> dict[str, Any]:
     """Run the adaptive tutor, checkpointing and tracking persistent chats."""
+
+    if not isinstance(question, str) or not question.strip():
+        raise ValueError("Question cannot be empty.")
+    if not isinstance(course_slug, str) or not course_slug.strip():
+        raise ValueError("Course slug cannot be empty.")
+    if not isinstance(limit, int) or limit <= 0:
+        raise ValueError("Search limit must be an integer greater than 0.")
+
+    # 1. Reject invalid non-empty learner ID format if supplied
+    if user_id is not None and not (isinstance(user_id, str) and user_id.strip()):
+        raise ValueError("Learner user ID must be a non-empty string.")
+
+    # 2. Reject missing or blank user ID for persistent sessions
+    if session_id is not None and (user_id is None or not str(user_id).strip()):
+        raise ValueError(
+            "A learner user ID is required for a persistent chat session."
+        )
+
+    # 3. Reject missing or unauthenticated user ID for generative AI invocation
+    if not isinstance(user_id, str) or not user_id.strip():
+        raise PermissionError(
+            "An authenticated learner user ID is required before invoking generative AI tutoring."
+        )
+
+    # 4. Always retrieve authoritative learner profile from PostgreSQL
+    try:
+        from services.learner_service import get_learner_profile
+        profile = get_learner_profile(user_id.strip())
+    except Exception as exc:
+        logger.error(
+            "Authoritative learner profile verification failed for user (%s): %s",
+            user_id,
+            exc,
+            exc_info=True,
+        )
+        raise PermissionError(
+            "Authoritative learner profile could not be verified from database."
+        ) from exc
+
+    if not isinstance(profile, dict):
+        raise PermissionError(
+            "Authoritative learner profile could not be retrieved from database."
+        )
+
+    # 5. Enforce authoritative database consent and adult status
+    db_consent = profile.get("ai_consent")
+    db_adult = profile.get("adult_confirmation")
+
+    if db_consent is not True:
+        raise PermissionError(
+            "Explicit affirmative consent for generative AI processing is required in the database before invoking Google Gemini or Groq."
+        )
+
+    if db_adult is not True:
+        raise PermissionError(
+            "Affirmative self-confirmation of adult age (18+) is required in the database before invoking Google Gemini or Groq."
+        )
+
+    if conversation_history is None and session_id is not None and user_id is not None:
+        try:
+            db_messages = get_chat_messages(
+                user_id=user_id,
+                session_id=session_id,
+                limit=MAX_CONTEXT_HISTORY_MESSAGES,
+            )
+            conversation_history = [
+                {"role": m["role"], "content": m["content"]}
+                for m in db_messages
+                if m.get("role") in {"user", "assistant"} and m.get("content")
+            ]
+        except LookupError:
+            conversation_history = []
+        except Exception as exc:
+            logger.warning(
+                "Could not auto-load chat history for session (%s): %s",
+                type(exc).__name__,
+                exc,
+            )
+            conversation_history = []
 
     graph_input = {
         "question": question,

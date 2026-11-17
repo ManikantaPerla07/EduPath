@@ -223,6 +223,7 @@ def create_chat_session(
         WHERE u.user_id = %s
           AND u.is_active = TRUE
           AND c.course_slug = %s
+          AND c.is_published = TRUE
         FOR SHARE OF u
         RETURNING
             session_id,

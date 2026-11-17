@@ -1,6 +1,7 @@
 """Resolve contextual learner follow-up questions into standalone queries."""
 
 import json
+import logging
 import re
 from collections.abc import Mapping
 from typing import Any
@@ -16,6 +17,8 @@ from services.answer_generation_service import (
 )
 from services.embedding_service import load_gemini_api_key
 
+logger = logging.getLogger(__name__)
+
 
 MAX_CONTEXT_HISTORY_MESSAGES = 10
 MAX_HISTORY_MESSAGE_CHARS = 1500
@@ -24,8 +27,9 @@ MAX_RESOLVED_QUESTION_LENGTH = 2000
 MAX_OUTPUT_TOKENS = 256
 
 CONTEXT_REFERENCE_PATTERN = re.compile(
-    r"\b(?:that|this|it|they|them|those|these|same|previous|"
-    r"earlier|above|again)\b",
+    r"\b(?:that|this|it|its|they|them|their|theirs|those|these|same|previous|"
+    r"earlier|above|again|one|another|such|latter|former)\b|"
+    r"\b(?:example of|accessing an? (?:item|element)|how to do (?:so|that))\b",
     re.IGNORECASE,
 )
 
@@ -34,6 +38,28 @@ def _needs_context_resolution(question: str) -> bool:
     """Check whether the question contains a reference needing history."""
 
     return bool(CONTEXT_REFERENCE_PATTERN.search(question))
+
+
+def _deterministic_context_preservation(
+    question: str,
+    conversation_history: list[dict[str, str]],
+) -> str:
+    """Safely combine the current question with recent context when LLMs are unavailable."""
+
+    recent_user_questions = [
+        msg["content"].strip()
+        for msg in conversation_history
+        if msg.get("role") == "user" and msg.get("content", "").strip()
+    ]
+    if not recent_user_questions:
+        return question
+
+    last_user_query = recent_user_questions[-1]
+    clean_last = re.sub(r"[?!.]+$", "", last_user_query).strip()
+    clean_curr = question.strip()
+
+    combined = f"{clean_last} {clean_curr}"
+    return " ".join(combined.split())[:MAX_RESOLVED_QUESTION_LENGTH]
 
 
 SYSTEM_INSTRUCTION = """
@@ -202,69 +228,103 @@ def resolve_contextual_question(
         conversation_history=prepared_history,
     )
 
-    try:
-        if client is None:
-            client = genai.Client(api_key=load_gemini_api_key())
+    if client is not None:
+        try:
+            models_to_try = (
+                GENERATION_MODEL,
+                FALLBACK_GENERATION_MODEL,
+            )
 
-        models_to_try = (
-            GENERATION_MODEL,
-            FALLBACK_GENERATION_MODEL,
+            for index, model_name in enumerate(models_to_try):
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=SYSTEM_INSTRUCTION,
+                            temperature=0.0,
+                            max_output_tokens=MAX_OUTPUT_TOKENS,
+                        ),
+                    )
+
+                    resolved = getattr(response, "text", None)
+
+                    if not isinstance(resolved, str) or not resolved.strip():
+                        raise ConversationContextError(
+                            "Gemini returned an empty contextual question."
+                        )
+
+                    resolved = " ".join(resolved.strip().split())
+
+                    if len(resolved) > MAX_RESOLVED_QUESTION_LENGTH:
+                        raise ConversationContextError(
+                            "Gemini returned an excessively long contextual question."
+                        )
+
+                    return resolved
+
+                except ConversationContextError:
+                    raise
+
+                except Exception as exc:
+                    status_code = getattr(exc, "code", None)
+
+                    can_use_fallback = (
+                        index == 0
+                        and status_code in RETRYABLE_SERVER_ERRORS
+                    )
+
+                    if can_use_fallback:
+                        continue
+
+                    raise ConversationContextError(
+                        f"Could not resolve conversation context using {model_name}."
+                    ) from exc
+
+        except ConversationContextError:
+            raise
+
+        except Exception as exc:
+            raise ConversationContextError(
+                "Could not initialize the conversation-context resolver."
+            ) from exc
+
+        raise ConversationContextError(
+            "Conversation-context resolution failed using all available models."
         )
 
-        for index, model_name in enumerate(models_to_try):
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_INSTRUCTION,
-                        temperature=0.0,
-                        max_output_tokens=MAX_OUTPUT_TOKENS,
-                    ),
-                )
+    # Live multi-LLM execution with automatic failover (Gemini -> Groq)
+    try:
+        from services.llm_provider_service import generate_with_provider_failover
 
-                resolved = getattr(response, "text", None)
+        result = generate_with_provider_failover(
+            prompt=prompt,
+            system_instruction=SYSTEM_INSTRUCTION,
+            temperature=0.0,
+            max_output_tokens=MAX_OUTPUT_TOKENS,
+            gemini_timeout=15.0,
+            groq_timeout=25.0,
+        )
 
-                if not isinstance(resolved, str) or not resolved.strip():
-                    raise ConversationContextError(
-                        "Gemini returned an empty contextual question."
-                    )
+        resolved = result.answer
 
-                resolved = " ".join(resolved.strip().split())
+        if not isinstance(resolved, str) or not resolved.strip():
+            logger.warning(
+                "Multi-LLM context resolution returned empty query; falling back to deterministic preservation."
+            )
+            return _deterministic_context_preservation(question, prepared_history)
 
-                if len(resolved) > MAX_RESOLVED_QUESTION_LENGTH:
-                    raise ConversationContextError(
-                        "Gemini returned an excessively long contextual question."
-                    )
+        resolved = " ".join(resolved.strip().split())
 
-                return resolved
+        if len(resolved) > MAX_RESOLVED_QUESTION_LENGTH:
+            return resolved[:MAX_RESOLVED_QUESTION_LENGTH]
 
-            except ConversationContextError:
-                raise
-
-            except Exception as exc:
-                status_code = getattr(exc, "code", None)
-
-                can_use_fallback = (
-                    index == 0
-                    and status_code in RETRYABLE_SERVER_ERRORS
-                )
-
-                if can_use_fallback:
-                    continue
-
-                raise ConversationContextError(
-                    f"Could not resolve conversation context using {model_name}."
-                ) from exc
-
-    except ConversationContextError:
-        raise
+        return resolved
 
     except Exception as exc:
-        raise ConversationContextError(
-            "Could not initialize the conversation-context resolver."
-        ) from exc
-
-    raise ConversationContextError(
-        "Conversation-context resolution failed using all available models."
-    )
+        logger.warning(
+            "Multi-LLM context resolution failed (%s: %s); falling back to deterministic preservation.",
+            type(exc).__name__,
+            exc,
+        )
+        return _deterministic_context_preservation(question, prepared_history)
