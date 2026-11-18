@@ -65,9 +65,9 @@ server_metadata_url = "https://accounts.google.com/.well-known/openid-configurat
 ### Google Cloud Console (OAuth Configuration):
 1. Open [Google Cloud Console Credentials](https://console.cloud.google.com/apis/credentials).
 2. Add your Streamlit Cloud URL to **Authorized JavaScript origins**:
-   `https://your-edupath-app.streamlit.app`
+   `https://edupath-perla-demo.streamlit.app`
 3. Add the callback URL to **Authorized redirect URIs**:
-   `https://your-edupath-app.streamlit.app/oauth2callback`
+   `https://edupath-perla-demo.streamlit.app/oauth2callback`
 
 ---
 
