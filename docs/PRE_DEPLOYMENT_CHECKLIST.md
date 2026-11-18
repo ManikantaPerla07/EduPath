@@ -1,7 +1,7 @@
 # EduPath Deployment & Release Verification
 
 **Course:** CSE473 — Major Project\
-**Initiative:** Google Solution Challenge\
+**Academic theme:** UN SDG 4 — Quality Education\
 **Sustainable Development Goal:** UN SDG 4 — Quality Education\
 **Project Group:** G22 | **Lead Developer:** Perla Manikanta\
 **Runtime Environment:** Windows 11, PowerShell, Python 3.11.9, Neon PostgreSQL + pgvector\
