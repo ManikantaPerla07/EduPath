@@ -18,7 +18,7 @@ Learner-aware tutoring · Adaptive practice · RAG · Persistent learning progre
 [![Gemini](https://img.shields.io/badge/Google-Gemini-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
 [![Groq](https://img.shields.io/badge/Groq-Failover-F55036)](https://groq.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169E1?logo=postgresql&logoColor=white)](https://neon.tech/)
-[![pgvector](https://img.shields.io/badge/pgvector-Vector-%20Search-2F6F8F?style=flat)](https://github.com/pgvector/pgvector)
+[![pgvector](https://img.shields.io/badge/pgvector-Vector_Search-2F6F8F?style=flat)](https://github.com/pgvector/pgvector)
 [![GitHub Stars](https://img.shields.io/github/stars/ManikantaPerla07/EduPath)](https://github.com/ManikantaPerla07/EduPath/stargazers)
 [![Last Commit](https://img.shields.io/github/last-commit/ManikantaPerla07/EduPath/feature/unify-langchain-retrieval)](https://github.com/ManikantaPerla07/EduPath/commits/feature/unify-langchain-retrieval)
 
