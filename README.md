@@ -1,7 +1,7 @@
 <div align="center">
 
 <a href="https://edupath-perla-demo.streamlit.app/">
-  <img src="https://raw.githubusercontent.com/ManikantaPerla07/EduPath/feature/unify-langchain-retrieval/docs/assets/edupath-banner.svg" alt="EduPath — Personalized AI Learning Space" width="100%">
+  <img src="docs/assets/edupath-banner.svg" alt="EduPath — Personalized AI Learning Space" width="100%">
 </a>
 
 <h2>Personalized learning, grounded answers, measurable progress.</h2>
@@ -26,7 +26,7 @@
 <p>
   <a href="https://github.com/ManikantaPerla07/EduPath/stargazers"><img src="https://img.shields.io/github/stars/ManikantaPerla07/EduPath?style=social" alt="GitHub stars"></a>
   <a href="https://github.com/ManikantaPerla07/EduPath/network/members"><img src="https://img.shields.io/github/forks/ManikantaPerla07/EduPath?style=social" alt="GitHub forks"></a>
-  <a href="https://img.shields.io/github/last-commit/ManikantaPerla07/EduPath/feature/unify-langchain-retrieval"><img src="https://img.shields.io/github/last-commit/ManikantaPerla07/EduPath/feature/unify-langchain-retrieval?label=last%20update" alt="Last update"></a>
+  <a href="https://github.com/ManikantaPerla07/EduPath/commits/feature/unify-langchain-retrieval"><img src="https://img.shields.io/github/last-commit/ManikantaPerla07/EduPath?branch=feature%2Funify-langchain-retrieval&label=last%20update" alt="Last update"></a>
   <a href="https://github.com/ManikantaPerla07/EduPath/issues"><img src="https://img.shields.io/github/issues/ManikantaPerla07/EduPath?label=open%20issues" alt="Open issues"></a>
 </p>
 
