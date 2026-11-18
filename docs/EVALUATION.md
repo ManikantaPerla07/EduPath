@@ -11,9 +11,9 @@ EduPath employs a four-tiered evaluation framework to distinguish between code c
 ---
 
 ## 2. Software Test Suite Verification
-- **Test Framework:** Pytest 8.x
+- **Test Runner:** Python `unittest` discovery
 - **Execution Date:** November 18, 2026
-- **Command:** `python -m pytest -q`
+- **Command:** `python -m unittest discover -s tests -p "test_*.py"`
 - **Result:** **639 tests passed** (0 failures).
 - **Failures / Errors:** 0.
 
