@@ -1,19 +1,24 @@
 # Deployment Guide — Streamlit Community Cloud & Neon
-**Target Platform:** Streamlit Community Cloud (Free Tier)\
-**Database:** Neon Serverless PostgreSQL (`neondb`)\
-**LLM API:** Google Gemini API (Free Tier)\
-**Budget Objective:** ₹0\
+**Target Platform:** Streamlit Community Cloud (user-confirmed live deployment)\\
+**Live Application:** https://edupath-perla-demo.streamlit.app/\\
+**Repository:** https://github.com/ManikantaPerla07/EduPath\\
+**Deployed Branch:** `feature/unify-langchain-retrieval`\\
+**Database:** Neon Serverless PostgreSQL (`neondb`)\\
+**LLM Providers:** Google Gemini (primary) and Groq (secondary failover)\\
+**Budget Objective:** ₹0 target using free-tier services (subject to quotas)\\
 **Author:** Perla Manikanta
 
 ---
 
 ## 1. Hosting Architecture
 EduPath is designed to deploy to Streamlit Community Cloud connected to serverless backends:
-- **Application Host:** Streamlit Community Cloud (Manual deployment target)
+- **Application Host:** Streamlit Community Cloud
+- **Live URL:** https://edupath-perla-demo.streamlit.app/
 - **Repository:** `ManikantaPerla07/EduPath`
-- **Target Branch:** `main` (currently developed in the working tree on branch `feature/unify-langchain-retrieval`; not yet merged into `main`)
+- **Deployed Branch:** `feature/unify-langchain-retrieval`
 - **Entrypoint:** `app.py`
-- **Runtime:** Python 3.11.9 / 3.12 compatible
+- **Runtime:** Python 3.11 (matches the locally tested runtime)
+- **Default branch note:** GitHub's `main` branch has a landing-page README but is not yet merged with the deployed implementation branch.
 
 ---
 
@@ -32,7 +37,7 @@ GROQ_API_KEY = "gsk_..."
 
 # Streamlit Auth / Google OIDC Configuration
 [auth]
-redirect_uri = "https://your-edupath-app.streamlit.app/oauth2callback"
+redirect_uri = "https://edupath-perla-demo.streamlit.app/oauth2callback"
 cookie_secret = "GENERATE_A_SECURE_RANDOM_32_CHAR_STRING"
 client_id = "YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com"
 client_secret = "YOUR_GOOGLE_OAUTH_CLIENT_SECRET"
@@ -44,7 +49,7 @@ server_metadata_url = "https://accounts.google.com/.well-known/openid-configurat
 ## 3. Deployment Pre-Flight Checklist
 
 ### Database Pre-requisites (Neon SQL Editor):
-1. Confirm migrations `001` through `006` are applied:
+1. Confirm migrations `001` through `007` are applied:
    ```sql
    SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';
    ```
@@ -52,7 +57,7 @@ server_metadata_url = "https://accounts.google.com/.well-known/openid-configurat
    ```sql
    SELECT * FROM pg_extension WHERE extname = 'vector';
    ```
-3. Verify Python course is published:
+3. Verify the Python course is published (the hosted learner UI requires a published course):
    ```sql
    SELECT course_slug, is_published FROM courses WHERE course_slug = 'python-basics';
    ```
